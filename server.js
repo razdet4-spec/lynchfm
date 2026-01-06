@@ -8,10 +8,10 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
-const clients = new Set(); // Храним всех подключенных
-let broadcaster = null;    // Ведущий трансляции
+const clients = new Set();
+let broadcaster = null;
 
-// Раздаем статику из public
+// Раздаем статические файлы
 app.use(express.static(path.join(__dirname, "public")));
 
 // Главная страница
@@ -24,66 +24,79 @@ app.get("/studio", (req, res) => {
     res.sendFile(path.join(__dirname, "studio.html"));
 });
 
-// Статус с количеством пользователей
+// Статус сервера
 app.get("/status", (req, res) => {
     res.json({
         status: "online",
-        listeners: clients.size,
         broadcaster: !!broadcaster,
+        listeners: clients.size - (broadcaster ? 1 : 0),
         time: new Date().toISOString()
     });
 });
 
-// WebSocket обработка
+// WebSocket сервер
 wss.on("connection", (ws) => {
-    console.log("Новое подключение. Всего клиентов:", clients.size + 1);
-    
-    // Добавляем клиента
+    console.log("Новый клиент подключился. Всего:", clients.size + 1);
     clients.add(ws);
-    
-    ws.on("message", (data) => {
-        // Бинарные данные (аудио) - пересылаем всем слушателям
-        if (data instanceof Buffer || data instanceof ArrayBuffer) {
-            clients.forEach((client) => {
+
+    ws.on("message", (message) => {
+        // Аудио данные
+        if (message instanceof Buffer || message instanceof ArrayBuffer) {
+            // Отправляем всем слушателям
+            clients.forEach(client => {
                 if (client !== ws && client.readyState === WebSocket.OPEN) {
-                    client.send(data);
+                    client.send(message);
                 }
             });
             return;
         }
-        
+
         // Текстовые сообщения
-        if (typeof data === "string") {
+        if (typeof message === "string") {
             try {
-                const msg = JSON.parse(data);
+                const data = JSON.parse(message);
                 
-                if (msg.type === "register-broadcaster") {
+                if (data.type === "register-broadcaster") {
                     broadcaster = ws;
                     console.log("Ведущий зарегистрирован");
-                    ws.send(JSON.stringify({ 
-                        type: "registered", 
-                        role: "broadcaster",
-                        listeners: clients.size - 1
-                    }));
+                    ws.send(JSON.stringify({ type: "registered", role: "broadcaster" }));
+                    
+                    // Отправляем количество слушателей
+                    const listenersCount = clients.size - 1;
+                    ws.send(JSON.stringify({ type: "listeners", count: listenersCount }));
                 }
                 
-                if (msg.type === "register-listener") {
-                    console.log("Новый слушатель. Всего:", clients.size);
-                    ws.send(JSON.stringify({ 
-                        type: "registered", 
-                        role: "listener",
-                        listeners: clients.size
-                    }));
+                if (data.type === "register-listener") {
+                    console.log("Новый слушатель. Всего слушателей:", clients.size - (broadcaster ? 1 : 0));
+                    ws.send(JSON.stringify({ type: "registered", role: "listener" }));
                     
-                    // Обновляем счетчик у всех
-                    broadcastListenersCount();
+                    // Отправляем количество слушателей всем
+                    const listenersCount = clients.size - (broadcaster ? 1 : 0);
+                    clients.forEach(client => {
+                        if (client.readyState === WebSocket.OPEN) {
+                            client.send(JSON.stringify({ type: "listeners", count: listenersCount }));
+                        }
+                    });
                 }
-            } catch (e) {
-                console.log("Ошибка парсинга сообщения:", e);
+                
+                if (data.type === "track-info") {
+                    // Пересылаем информацию о треке всем слушателям
+                    clients.forEach(client => {
+                        if (client !== ws && client.readyState === WebSocket.OPEN) {
+                            client.send(JSON.stringify({
+                                type: "track-info",
+                                title: data.title,
+                                artist: data.artist
+                            }));
+                        }
+                    });
+                }
+            } catch (error) {
+                console.log("Ошибка парсинга:", error);
             }
         }
     });
-    
+
     ws.on("close", () => {
         console.log("Клиент отключился");
         clients.delete(ws);
@@ -93,30 +106,34 @@ wss.on("connection", (ws) => {
             console.log("Ведущий отключился");
         }
         
-        broadcastListenersCount();
+        // Обновляем счетчик слушателей
+        const listenersCount = clients.size - (broadcaster ? 1 : 0);
+        clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({ type: "listeners", count: listenersCount }));
+            }
+        });
+    });
+
+    ws.on("error", (error) => {
+        console.log("WebSocket ошибка:", error);
     });
 });
-
-// Функция для рассылки количества слушателей
-function broadcastListenersCount() {
-    const count = clients.size - (broadcaster ? 1 : 0);
-    const message = JSON.stringify({ 
-        type: "listeners", 
-        count: count 
-    });
-    
-    clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(message);
-        }
-    });
-}
 
 // Запуск сервера
 server.listen(PORT, () => {
     console.log("========================================");
-    console.log("🎧 LynchFM Radio Server запущен!");
-    console.log("📡 Порт:", PORT);
-    console.log("👥 Макс. клиентов:", wss.options.maxListeners || "не ограничено");
+    console.log("LynchFM Radio Server запущен!");
+    console.log("Порт:", PORT);
     console.log("========================================");
+});
+
+// Graceful shutdown
+process.on("SIGINT", () => {
+    console.log("Остановка сервера...");
+    wss.clients.forEach(client => client.close());
+    server.close(() => {
+        console.log("Сервер остановлен");
+        process.exit(0);
+    });
 });

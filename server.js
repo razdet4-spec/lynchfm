@@ -57,7 +57,7 @@ wss.on('connection', (ws, req) => {
                 });
                 
                 // Логируем размер аудио данных
-                console.log(Аудио данные: ${message.length} байт);
+console.log(Аудио данные: ${message.length} байт);
                 return;
             }
             

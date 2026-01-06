@@ -5,7 +5,10 @@ const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ 
+    server,
+    maxPayload: 10485760 // 10MB максимум для аудио
+});
 
 const PORT = process.env.PORT || 3000;
 const clients = new Set();
@@ -19,7 +22,7 @@ app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Студия
+// Студия (доступ только по прямому URL)
 app.get("/studio", (req, res) => {
     res.sendFile(path.join(__dirname, "studio.html"));
 });
@@ -36,27 +39,38 @@ app.get("/status", (req, res) => {
 
 // WebSocket сервер
 wss.on("connection", (ws) => {
-    console.log("Новый клиент подключился. Всего:", clients.size + 1);
+    console.log("Новый клиент подключился");
     clients.add(ws);
 
-    ws.on("message", (message) => {
+    ws.on("message", (data) => {
         // Аудио данные
-        if (message instanceof Buffer || message instanceof ArrayBuffer) {
+        if (data instanceof Buffer) {
             // Отправляем всем слушателям
             clients.forEach(client => {
                 if (client !== ws && client.readyState === WebSocket.OPEN) {
-                    client.send(message);
+                    client.send(data);
+                }
+            });
+            return;
+        }
+        
+        // ArrayBuffer тоже поддерживаем
+        if (data instanceof ArrayBuffer) {
+            const buffer = Buffer.from(data);
+            clients.forEach(client => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                    client.send(buffer);
                 }
             });
             return;
         }
 
         // Текстовые сообщения
-        if (typeof message === "string") {
+        if (typeof data === "string") {
             try {
-                const data = JSON.parse(message);
+                const msg = JSON.parse(data);
                 
-                if (data.type === "register-broadcaster") {
+                if (msg.type === "register-broadcaster") {
                     broadcaster = ws;
                     console.log("Ведущий зарегистрирован");
                     ws.send(JSON.stringify({ type: "registered", role: "broadcaster" }));
@@ -66,7 +80,7 @@ wss.on("connection", (ws) => {
                     ws.send(JSON.stringify({ type: "listeners", count: listenersCount }));
                 }
                 
-                if (data.type === "register-listener") {
+                if (msg.type === "register-listener") {
                     console.log("Новый слушатель. Всего слушателей:", clients.size - (broadcaster ? 1 : 0));
                     ws.send(JSON.stringify({ type: "registered", role: "listener" }));
                     
@@ -79,18 +93,6 @@ wss.on("connection", (ws) => {
                     });
                 }
                 
-                if (data.type === "track-info") {
-                    // Пересылаем информацию о треке всем слушателям
-                    clients.forEach(client => {
-                        if (client !== ws && client.readyState === WebSocket.OPEN) {
-                            client.send(JSON.stringify({
-                                type: "track-info",
-                                title: data.title,
-                                artist: data.artist
-                            }));
-                        }
-                    });
-                }
             } catch (error) {
                 console.log("Ошибка парсинга:", error);
             }
@@ -125,6 +127,8 @@ server.listen(PORT, () => {
     console.log("========================================");
     console.log("LynchFM Radio Server запущен!");
     console.log("Порт:", PORT);
+    console.log("Сайт: https://lynchfm-backend.onrender.com");
+    console.log("Студия: https://lynchfm-backend.onrender.com/studio");
     console.log("========================================");
 });
 

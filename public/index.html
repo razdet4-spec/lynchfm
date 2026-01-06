@@ -144,12 +144,11 @@
         </div>
         
         <div class="footer">
-            LynchFM Radio © 2024 | Только прямой эфир
+            LynchFM Radio © 2024
         </div>
     </div>
 
     <script>
-        // Элементы
         const audioPlayer = document.getElementById('audioPlayer');
         const statusEl = document.getElementById('status');
         const nowPlayingEl = document.getElementById('nowPlaying');
@@ -160,32 +159,10 @@
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}`;
         let ws = null;
+        let currentBlobUrl = null;
+        let bytesReceived = 0;
+        let lastUpdate = Date.now();
         
-        // Для непрерывного воспроизведения
-        let mediaSource = null;
-        let sourceBuffer = null;
-        let audioQueue = [];
-        let isPlaying = false;
-        let lastBlobUrl = null;
-        
-        // Простой метод воспроизведения (работает во всех браузерах)
-        function playAudioBlob(blob) {
-            // Освобождаем предыдущий URL
-            if (lastBlobUrl) {
-                URL.revokeObjectURL(lastBlobUrl);
-            }
-            
-            // Создаем новый URL для Blob
-            lastBlobUrl = URL.createObjectURL(blob);
-            audioPlayer.src = lastBlobUrl;
-            
-            // Пытаемся воспроизвести
-            audioPlayer.play().catch(e => {
-                console.log('Автовоспроизведение заблокировано, ждем взаимодействия');
-            });
-        }
-        
-        // Подключение к серверу
         function connect() {
             console.log('Подключаемся к:', wsUrl);
             
@@ -195,31 +172,31 @@
                 console.log('✅ WebSocket подключен');
                 updateStatus('Подключено к серверу', 'online');
                 
-                // Регистрируемся как слушатель
                 ws.send(JSON.stringify({
                     type: 'register-listener',
-                    userAgent: navigator.userAgent,
                     timestamp: Date.now()
                 }));
+                
+                // Запускаем мониторинг битрейта
+                setInterval(updateBitrate, 1000);
             };
             
             ws.onmessage = (event) => {
-                // Аудио данные (Blob)
+                // Аудио данные
                 if (event.data instanceof Blob) {
+                    bytesReceived += event.data.size;
                     playAudioBlob(event.data);
                     updateStatus('🔴 В ЭФИРЕ', 'broadcast');
                     nowPlayingEl.textContent = 'Прямой эфир';
-                    isPlaying = true;
                     return;
                 }
                 
-                // ArrayBuffer (конвертируем в Blob)
                 if (event.data instanceof ArrayBuffer) {
+                    bytesReceived += event.data.byteLength;
                     const blob = new Blob([event.data], { type: 'audio/webm' });
                     playAudioBlob(blob);
                     updateStatus('🔴 В ЭФИРЕ', 'broadcast');
                     nowPlayingEl.textContent = 'Прямой эфир';
-                    isPlaying = true;
                     return;
                 }
                 
@@ -244,9 +221,6 @@
             ws.onclose = () => {
                 console.log('WebSocket закрыт');
                 updateStatus('Соединение потеряно', 'offline');
-                isPlaying = false;
-                
-                // Переподключение через 3 секунды
                 setTimeout(connect, 3000);
             };
             
@@ -256,7 +230,22 @@
             };
         }
         
-        // Обновление статуса
+        function playAudioBlob(blob) {
+            // Освобождаем предыдущий URL
+            if (currentBlobUrl) {
+                URL.revokeObjectURL(currentBlobUrl);
+            }
+            
+            // Создаем новый URL для Blob
+            currentBlobUrl = URL.createObjectURL(blob);
+            audioPlayer.src = currentBlobUrl;
+            
+            // Пытаемся воспроизвести
+            audioPlayer.play().catch(e => {
+                console.log('Автовоспроизведение заблокировано');
+            });
+        }
+        
         function updateStatus(text, type) {
             const dot = statusEl.querySelector('.dot');
             dot.style.color = type === 'online' ? '#00ff64' : 
@@ -272,14 +261,27 @@
             statusEl.className = `status status-${type}`;
         }
         
-        // Запуск при загрузке страницы
+        function updateBitrate() {
+            const now = Date.now();
+            const elapsed = (now - lastUpdate) / 1000;
+            
+            if (elapsed > 0 && bytesReceived > 0) {
+                const kbps = Math.round((bytesReceived * 8) / (elapsed * 1000));
+                bitrateEl.textContent = `${kbps} kbps`;
+                bytesReceived = 0;
+            }
+            
+            lastUpdate = now;
+        }
+        
+        // Запуск
         window.addEventListener('load', connect);
         
-        // Очистка при закрытии
+        // Очистка
         window.addEventListener('beforeunload', () => {
             if (ws) ws.close();
-            if (lastBlobUrl) {
-                URL.revokeObjectURL(lastBlobUrl);
+            if (currentBlobUrl) {
+                URL.revokeObjectURL(currentBlobUrl);
             }
         });
     </script>

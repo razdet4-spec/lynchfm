@@ -121,31 +121,6 @@
             font-size: 0.9em;
             color: #aaa;
         }
-        .drop-zone {
-            border: 2px dashed #00ffff;
-            border-radius: 10px;
-            padding: 30px;
-            text-align: center;
-            margin: 20px 0;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .drop-zone:hover {
-            background: rgba(0, 255, 255, 0.1);
-        }
-        .playlist {
-            max-height: 200px;
-            overflow-y: auto;
-            margin-top: 15px;
-        }
-        .playlist-item {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 5px;
-            display: flex;
-            justify-content: space-between;
-        }
     </style>
 </head>
 <body>
@@ -181,26 +156,9 @@
                     <div class="stat-label">Слушателей</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value" id="bitrateValue">0</div>
-                    <div class="stat-label">kbps</div>
-                </div>
-                <div class="stat">
                     <div class="stat-value" id="uptime">0:00</div>
                     <div class="stat-label">В эфире</div>
                 </div>
-            </div>
-        </div>
-        
-        <div class="panel">
-            <h3>🎵 Музыка и треки</h3>
-            <div class="drop-zone" id="dropZone">
-                📁 Перетащите MP3 файлы сюда<br>
-                <small>или нажмите для выбора</small>
-            </div>
-            <input type="file" id="fileInput" accept="audio/*" multiple style="display: none;">
-            
-            <div class="playlist" id="playlist">
-                <div class="playlist-item">Плейлист пуст</div>
             </div>
         </div>
     </div>
@@ -217,7 +175,6 @@
         let audioStream = null;
         let isBroadcasting = false;
         let startTime = null;
-        let bytesSent = 0;
         
         // Элементы
         const statusEl = document.getElementById('status');
@@ -226,7 +183,6 @@
         const audioInput = document.getElementById('audioInput');
         const levelFill = document.getElementById('levelFill');
         const listenersCountEl = document.getElementById('listenersCount');
-        const bitrateValueEl = document.getElementById('bitrateValue');
         const uptimeEl = document.getElementById('uptime');
         
         // Подключение к серверу
@@ -254,10 +210,6 @@
                         if (data.type === 'listeners') {
                             listenersCountEl.textContent = data.count;
                         }
-                        
-                        if (data.type === 'registered') {
-                            console.log('Зарегистрирован как:', data.role);
-                        }
                     } catch (e) {
                         console.log('Сообщение:', event.data);
                     }
@@ -281,7 +233,7 @@
             };
         }
         
-        // Начало трансляции
+        // Начало трансляции - ФИКСИРОВАННАЯ ВЕРСИЯ
         async function startBroadcast() {
             if (isBroadcasting) return;
             
@@ -289,7 +241,12 @@
                 // Получаем доступ к микрофону
                 const selectedDevice = audioInput.value;
                 const constraints = {
-                    audio: selectedDevice ? { deviceId: { exact: selectedDevice } } : true
+                    audio: {
+                        deviceId: selectedDevice ? { exact: selectedDevice } : undefined,
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
                 };
                 
                 audioStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -330,23 +287,30 @@
                 
                 updateAudioLevel();
                 
-                // Создаем MediaRecorder
+                // НАСТРОЙКИ ДЛЯ НЕПРЕРЫВНОГО АУДИО
                 const options = {
                     mimeType: 'audio/webm;codecs=opus',
                     audioBitsPerSecond: 128000
                 };
                 
+                // Проверяем поддержку codec
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    console.log('WebM/Opus не поддерживается, используем default');
+                    options.mimeType = '';
+                }
+                
                 mediaRecorder = new MediaRecorder(audioStream, options);
                 
+                // ФИКС: отправляем каждый чанк сразу, а не собираем
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
-                        bytesSent += event.data.size;
+                        // Отправляем как есть
                         ws.send(event.data);
                     }
                 };
                 
-                // Начинаем запись
-                mediaRecorder.start(500); // Отправляем данные каждые 500мс
+                // Стартуем с интервалом 500мс для плавности
+                mediaRecorder.start(500);
                 
                 // Обновляем состояние
                 isBroadcasting = true;
@@ -364,15 +328,6 @@
                         const minutes = Math.floor(seconds / 60);
                         const secs = seconds % 60;
                         uptimeEl.textContent = `${minutes}:${secs.toString().padStart(2, '0')}`;
-                    }
-                }, 1000);
-                
-                // Обновляем битрейт
-                setInterval(() => {
-                    if (isBroadcasting) {
-                        const kbps = Math.round((bytesSent * 8) / 1000);
-                        bitrateValueEl.textContent = kbps;
-                        bytesSent = 0;
                     }
                 }, 1000);
                 

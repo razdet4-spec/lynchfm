@@ -2,101 +2,121 @@ const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 const path = require("path");
-const fs = require("fs");
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
+const clients = new Set(); // Храним всех подключенных
+let broadcaster = null;    // Ведущий трансляции
 
-// Раздаем статические файлы из папки public
+// Раздаем статику из public
 app.use(express.static(path.join(__dirname, "public")));
 
-// Главная страница - index.html из папки public
+// Главная страница
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Студия для ведущего - studio.html из корня
+// Студия
 app.get("/studio", (req, res) => {
     res.sendFile(path.join(__dirname, "studio.html"));
 });
 
-// API эндпоинты
+// Статус с количеством пользователей
 app.get("/status", (req, res) => {
-    res.json({ 
-        status: "online", 
+    res.json({
+        status: "online",
+        listeners: clients.size,
+        broadcaster: !!broadcaster,
         time: new Date().toISOString()
     });
 });
 
-// WebSocket обработчик
+// WebSocket обработка
 wss.on("connection", (ws) => {
-    console.log("Новое WebSocket соединение");
+    console.log("Новое подключение. Всего клиентов:", clients.size + 1);
     
-    ws.on("message", (message) => {
-        // Если это бинарные данные (аудио)
-        if (message instanceof Buffer || message instanceof ArrayBuffer) {
-            // Пересылаем всем другим клиентам
-            wss.clients.forEach((client) => {
+    // Добавляем клиента
+    clients.add(ws);
+    
+    ws.on("message", (data) => {
+        // Бинарные данные (аудио) - пересылаем всем слушателям
+        if (data instanceof Buffer || data instanceof ArrayBuffer) {
+            clients.forEach((client) => {
                 if (client !== ws && client.readyState === WebSocket.OPEN) {
-                    client.send(message);
+                    client.send(data);
                 }
             });
             return;
         }
         
-        // Если это текстовое сообщение
-        if (typeof message === "string") {
-            console.log("Сообщение от клиента:", message.substring(0, 100));
-            
+        // Текстовые сообщения
+        if (typeof data === "string") {
             try {
-                const data = JSON.parse(message);
-                if (data.type === "register-broadcaster") {
-                    console.log("Broadcaster зарегистрирован");
-                    ws.send(JSON.stringify({ type: "registered", role: "broadcaster" }));
+                const msg = JSON.parse(data);
+                
+                if (msg.type === "register-broadcaster") {
+                    broadcaster = ws;
+                    console.log("Ведущий зарегистрирован");
+                    ws.send(JSON.stringify({ 
+                        type: "registered", 
+                        role: "broadcaster",
+                        listeners: clients.size - 1
+                    }));
                 }
-                if (data.type === "register-listener") {
-                    console.log("Новый слушатель");
-                    ws.send(JSON.stringify({ type: "registered", role: "listener" }));
+                
+                if (msg.type === "register-listener") {
+                    console.log("Новый слушатель. Всего:", clients.size);
+                    ws.send(JSON.stringify({ 
+                        type: "registered", 
+                        role: "listener",
+                        listeners: clients.size
+                    }));
+                    
+                    // Обновляем счетчик у всех
+                    broadcastListenersCount();
                 }
             } catch (e) {
-                // Игнорируем ошибки парсинга
+                console.log("Ошибка парсинга сообщения:", e);
             }
         }
     });
     
     ws.on("close", () => {
-        console.log("Соединение закрыто");
-    });
-    
-    ws.on("error", (error) => {
-        console.error("WebSocket ошибка:", error);
+        console.log("Клиент отключился");
+        clients.delete(ws);
+        
+        if (ws === broadcaster) {
+            broadcaster = null;
+            console.log("Ведущий отключился");
+        }
+        
+        broadcastListenersCount();
     });
 });
 
-// Обработка ошибок 404
-app.use((req, res) => {
-    res.status(404).send("Страница не найдена");
-});
+// Функция для рассылки количества слушателей
+function broadcastListenersCount() {
+    const count = clients.size - (broadcaster ? 1 : 0);
+    const message = JSON.stringify({ 
+        type: "listeners", 
+        count: count 
+    });
+    
+    clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+        }
+    });
+}
 
 // Запуск сервера
 server.listen(PORT, () => {
     console.log("========================================");
-    console.log("LynchFM Radio Server запущен!");
-    console.log("Порт:", PORT);
-    console.log("Студия: http://localhost:" + PORT + "/studio");
-    console.log("Слушатели: http://localhost:" + PORT + "/");
+    console.log("🎧 LynchFM Radio Server запущен!");
+    console.log("📡 Порт:", PORT);
+    console.log("👥 Макс. клиентов:", wss.options.maxListeners || "не ограничено");
     console.log("========================================");
-});
-
-// Graceful shutdown
-process.on("SIGINT", () => {
-    console.log("Остановка сервера...");
-    wss.clients.forEach(client => client.close());
-    server.close(() => {
-        console.log("Сервер остановлен");
-        process.exit(0);
-    });
 });

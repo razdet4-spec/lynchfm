@@ -1,0 +1,13 @@
+[build]
+  command = "echo 'No build needed'"
+  publish = "public"
+  
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Если используете переменные окружения
+# [build.environment]
+#   REACT_APP_SERVER_URL = "https://your-render-url.onrender.com"
+

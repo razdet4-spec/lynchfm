@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  lynchfm:
+    build: .
+    container_name: lynchfm-radio
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - ALLOWED_ORIGINS=https://yourdomain.com
+    volumes:
+      - ./public:/app/public
+      - ./logs:/app/logs
+    networks:
+      - lynchfm-network
+
+networks:
+  lynchfm-network:
+    driver: bridge
+

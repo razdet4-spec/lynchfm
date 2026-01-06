@@ -1,0 +1,58 @@
+{
+  "name": "lynchfm-broadcaster",
+  "version": "1.0.0",
+  "description": "LynchFM Broadcasting Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win portable --x64 --config.win.sign=false --config.forceCodeSigning=false",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "radio",
+    "broadcasting",
+    "electron"
+  ],
+  "author": "LynchFM",
+  "license": "MIT",
+  "dependencies": {
+    "socket.io-client": "^4.6.1"
+  },
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.lynchfm.broadcaster",
+    "productName": "LynchFM Broadcaster",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/**/*",
+      "!dist/**/*",
+      "!.git/**/*"
+    ],
+    "win": {
+      "target": "portable",
+      "sign": false,
+      "verifyUpdateCodeSignature": false,
+      "artifactName": "LynchFM-Broadcaster-${version}-${arch}.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.music"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Audio"
+    },
+    "compression": "store",
+    "publish": null,
+    "forceCodeSigning": false
+  }
+}

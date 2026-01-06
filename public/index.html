@@ -55,15 +55,15 @@
             font-weight: bold;
             margin: 20px 0;
         }
-        .status-online {
-            background: rgba(0, 255, 100, 0.15);
-            border: 1px solid #00ff64;
-            color: #00ff64;
-        }
         .status-offline {
             background: rgba(255, 50, 50, 0.15);
             border: 1px solid #ff3232;
             color: #ff3232;
+        }
+        .status-online {
+            background: rgba(0, 255, 100, 0.15);
+            border: 1px solid #00ff64;
+            color: #00ff64;
         }
         .status-broadcast {
             background: rgba(255, 0, 0, 0.15);
@@ -75,11 +75,6 @@
             0% { opacity: 1; }
             50% { opacity: 0.7; }
             100% { opacity: 1; }
-        }
-        .info-panel {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
         .stats {
             display: flex;
@@ -100,21 +95,6 @@
             color: #aaa;
             font-size: 0.9em;
         }
-        .link {
-            margin-top: 20px;
-        }
-        .link a {
-            color: #00d4ff;
-            text-decoration: none;
-            font-size: 1em;
-            padding: 10px 20px;
-            border: 1px solid #00d4ff;
-            border-radius: 10px;
-            transition: all 0.3s;
-        }
-        .link a:hover {
-            background: rgba(0, 212, 255, 0.1);
-        }
         .now-playing {
             margin: 15px 0;
             padding: 10px;
@@ -122,6 +102,13 @@
             border-radius: 10px;
             font-style: italic;
             min-height: 24px;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #666;
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -156,13 +143,8 @@
             </div>
         </div>
         
-        <div class="info-panel">
-            <div class="link">
-                <a href="/studio">🎙️ Открыть студию для трансляции</a>
-            </div>
-            <div style="margin-top: 15px; font-size: 0.8em; color: #888;">
-                Работает в Chrome, Edge, Firefox, Safari
-            </div>
+        <div class="footer">
+            LynchFM Radio © 2024 | Только прямой эфир
         </div>
     </div>
 
@@ -179,9 +161,29 @@
         const wsUrl = `${protocol}//${window.location.host}`;
         let ws = null;
         
-        // Статистика
-        let lastBytes = 0;
-        let lastTime = Date.now();
+        // Для непрерывного воспроизведения
+        let mediaSource = null;
+        let sourceBuffer = null;
+        let audioQueue = [];
+        let isPlaying = false;
+        let lastBlobUrl = null;
+        
+        // Простой метод воспроизведения (работает во всех браузерах)
+        function playAudioBlob(blob) {
+            // Освобождаем предыдущий URL
+            if (lastBlobUrl) {
+                URL.revokeObjectURL(lastBlobUrl);
+            }
+            
+            // Создаем новый URL для Blob
+            lastBlobUrl = URL.createObjectURL(blob);
+            audioPlayer.src = lastBlobUrl;
+            
+            // Пытаемся воспроизвести
+            audioPlayer.play().catch(e => {
+                console.log('Автовоспроизведение заблокировано, ждем взаимодействия');
+            });
+        }
         
         // Подключение к серверу
         function connect() {
@@ -199,25 +201,25 @@
                     userAgent: navigator.userAgent,
                     timestamp: Date.now()
                 }));
-                
-                // Запускаем мониторинг битрейта
-                setInterval(updateBitrate, 1000);
             };
             
             ws.onmessage = (event) => {
-                // Аудио данные (Blob или ArrayBuffer)
-                if (event.data instanceof Blob || event.data instanceof ArrayBuffer) {
-                    lastBytes += event.data.size || event.data.byteLength;
-                    
-                    // Простой метод для всех браузеров
-                    if (event.data instanceof Blob) {
-                        const url = URL.createObjectURL(event.data);
-                        audioPlayer.src = url;
-                        audioPlayer.play().catch(e => console.log('Автовоспроизведение заблокировано'));
-                    }
-                    
+                // Аудио данные (Blob)
+                if (event.data instanceof Blob) {
+                    playAudioBlob(event.data);
                     updateStatus('🔴 В ЭФИРЕ', 'broadcast');
                     nowPlayingEl.textContent = 'Прямой эфир';
+                    isPlaying = true;
+                    return;
+                }
+                
+                // ArrayBuffer (конвертируем в Blob)
+                if (event.data instanceof ArrayBuffer) {
+                    const blob = new Blob([event.data], { type: 'audio/webm' });
+                    playAudioBlob(blob);
+                    updateStatus('🔴 В ЭФИРЕ', 'broadcast');
+                    nowPlayingEl.textContent = 'Прямой эфир';
+                    isPlaying = true;
                     return;
                 }
                 
@@ -225,7 +227,6 @@
                 if (typeof event.data === 'string') {
                     try {
                         const data = JSON.parse(event.data);
-                        console.log('Сообщение:', data);
                         
                         if (data.type === 'listeners') {
                             listenerCountEl.textContent = data.count;
@@ -234,12 +235,8 @@
                         if (data.type === 'track-info') {
                             nowPlayingEl.textContent = `${data.artist || 'Исполнитель'} - ${data.title || 'Трек'}`;
                         }
-                        
-                        if (data.type === 'registered') {
-                            console.log('Зарегистрирован как:', data.role);
-                        }
                     } catch (e) {
-                        console.log('Текст:', event.data);
+                        console.log('Текст от сервера:', event.data);
                     }
                 }
             };
@@ -247,6 +244,7 @@
             ws.onclose = () => {
                 console.log('WebSocket закрыт');
                 updateStatus('Соединение потеряно', 'offline');
+                isPlaying = false;
                 
                 // Переподключение через 3 секунды
                 setTimeout(connect, 3000);
@@ -274,33 +272,15 @@
             statusEl.className = `status status-${type}`;
         }
         
-        // Расчет битрейта
-        function updateBitrate() {
-            const now = Date.now();
-            const elapsed = (now - lastTime) / 1000;
-            
-            if (elapsed > 0 && lastBytes > 0) {
-                const kbps = Math.round((lastBytes * 8) / (elapsed * 1000));
-                bitrateEl.textContent = `${kbps} kbps`;
-                lastBytes = 0;
-            }
-            
-            lastTime = now;
-        }
-        
-        // Пинг серверу каждые 30 секунд
-        setInterval(() => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'ping', time: Date.now() }));
-            }
-        }, 30000);
-        
         // Запуск при загрузке страницы
         window.addEventListener('load', connect);
         
         // Очистка при закрытии
         window.addEventListener('beforeunload', () => {
             if (ws) ws.close();
+            if (lastBlobUrl) {
+                URL.revokeObjectURL(lastBlobUrl);
+            }
         });
     </script>
 </body>

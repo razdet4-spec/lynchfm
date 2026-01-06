@@ -53,3 +53,5 @@ coverage/
 # Git config (не коммитим локальный конфиг)
 .gitconfig_local
 push-to-github.bat
+fix-push.bat
+FIX_TOKEN.md

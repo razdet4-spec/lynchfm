@@ -1,232 +1,213 @@
-// Загрузка переменных окружения
-try {
-    require('dotenv').config();
-} catch (e) {
-    console.warn('dotenv не установлен, используем переменные окружения системы');
-}
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
-const cors = require('cors');
+const WebSocket = require('ws');
 const path = require('path');
-const helmet = require('helmet');
-const compression = require('compression');
-const rateLimit = require('express-rate-limit');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-// Настройка Socket.io с улучшенной конфигурацией
-const io = socketIo(server, {
-  cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || "*",
-    methods: ["GET", "POST"],
-    credentials: true
-  },
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000
-});
-
-// Безопасность
-app.use(helmet({
-  contentSecurityPolicy: false, // Отключаем для Socket.io
-  crossOriginEmbedderPolicy: false
-}));
-
-// Сжатие
-app.use(compression());
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100 // лимит запросов
-});
-app.use('/api/', limiter);
-
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.static('public', { maxAge: '1d' }));
-
-// Хранилище данных
-const stationData = {
-  isLive: false,
-  broadcaster: null,
-  listeners: new Map(),
-  currentTrack: {
-    title: 'LynchFM',
-    artist: '88.8 FM',
-    cover: null
-  },
-  stats: {
-    totalListeners: 0,
-    peakListeners: 0,
-    uptime: Date.now()
-  },
-  playlist: []
-};
-
-// API Routes
-app.get('/api/status', (req, res) => {
-  res.json({
-    isLive: stationData.isLive,
-    currentTrack: stationData.currentTrack,
-    listeners: stationData.listeners.size,
-    stats: {
-      ...stationData.stats,
-      uptime: Date.now() - stationData.stats.uptime
-    }
-  });
-});
-
-app.get('/api/stats', (req, res) => {
-  res.json({
-    listeners: stationData.listeners.size,
-    peakListeners: stationData.stats.peakListeners,
-    isLive: stationData.isLive,
-    uptime: Date.now() - stationData.stats.uptime
-  });
-});
-
-// Socket.io соединения
-io.on('connection', (socket) => {
-  console.log(`[${new Date().toISOString()}] Новое подключение: ${socket.id}`);
-
-  // Диджей подключается к эфиру
-  socket.on('broadcaster-connect', (data) => {
-    if (stationData.broadcaster && stationData.broadcaster !== socket.id) {
-      socket.emit('error', 'Уже есть активный диджей');
-      return;
-    }
-
-    stationData.broadcaster = socket.id;
-    stationData.isLive = true;
-    if (!stationData.stats.uptime || stationData.stats.uptime === Date.now()) {
-      stationData.stats.uptime = Date.now();
-    }
-    
-    if (data?.track) {
-      stationData.currentTrack = data.track;
-    }
-
-    // Отправляем всем о подключении диджея
-    socket.broadcast.emit('broadcaster');
-    socket.broadcast.emit('broadcaster-connected', {
-      track: stationData.currentTrack
-    });
-    
-    // Обновляем статус для всех
-    io.emit('status-update', {
-      isLive: true,
-      track: stationData.currentTrack,
-      listeners: stationData.listeners.size
-    });
-
-    console.log(`[${new Date().toISOString()}] Диджей подключен: ${socket.id}`);
-  });
-
-  // Слушатель подключается
-  socket.on('listener-connect', () => {
-    stationData.listeners.set(socket.id, {
-      connectedAt: Date.now(),
-      ip: socket.handshake.address
-    });
-
-    // Обновляем пиковое количество слушателей
-    if (stationData.listeners.size > stationData.stats.peakListeners) {
-      stationData.stats.peakListeners = stationData.listeners.size;
-    }
-
-    socket.emit('listener-ready', {
-      isLive: stationData.isLive,
-      track: stationData.currentTrack
-    });
-
-    if (stationData.broadcaster) {
-      socket.to(stationData.broadcaster).emit('watcher', socket.id);
-    }
-
-    io.emit('listeners-update', stationData.listeners.size);
-    console.log(`[${new Date().toISOString()}] Слушатель подключен: ${socket.id} (Всего: ${stationData.listeners.size})`);
-  });
-
-  // WebRTC сигналы
-  socket.on('offer', (id, message) => {
-    socket.to(id).emit('offer', socket.id, message);
-  });
-
-  socket.on('answer', (id, message) => {
-    socket.to(id).emit('answer', socket.id, message);
-  });
-
-  socket.on('candidate', (id, message) => {
-    socket.to(id).emit('candidate', socket.id, message);
-  });
-
-  // Обновление трека
-  socket.on('track-update', (track) => {
-    if (socket.id === stationData.broadcaster) {
-      stationData.currentTrack = track;
-      socket.broadcast.emit('track-update', track);
-      console.log(`[${new Date().toISOString()}] Трек обновлен: ${track.artist} - ${track.title}`);
-    }
-  });
-
-  // Получение статуса
-  socket.on('get-status', () => {
-    socket.emit('status', {
-      isLive: stationData.isLive,
-      track: stationData.currentTrack,
-      listeners: stationData.listeners.size
-    });
-  });
-
-  // Отключение
-  socket.on('disconnect', () => {
-    if (socket.id === stationData.broadcaster) {
-      stationData.broadcaster = null;
-      stationData.isLive = false;
-      io.emit('broadcaster-disconnected');
-      io.emit('status-update', { isLive: false });
-      console.log(`[${new Date().toISOString()}] Диджей отключился: ${socket.id}`);
-    } else if (stationData.listeners.has(socket.id)) {
-      stationData.listeners.delete(socket.id);
-      io.emit('listeners-update', stationData.listeners.size);
-      console.log(`[${new Date().toISOString()}] Слушатель отключился: ${socket.id} (Осталось: ${stationData.listeners.size})`);
-    }
-  });
-
-  // Принудительное отключение диджея
-  socket.on('broadcaster-disconnect', () => {
-    if (socket.id === stationData.broadcaster) {
-      stationData.broadcaster = null;
-      stationData.isLive = false;
-      io.emit('broadcaster-disconnected');
-      io.emit('status-update', { isLive: false });
-    }
-  });
-});
-
-// Обработка ошибок
-process.on('uncaughtException', (err) => {
-  console.error('Необработанное исключение:', err);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Необработанное отклонение промиса:', reason);
-});
-
-// Порт для бесплатных хостингов (Render использует PORT из env, Railway тоже)
+// Конфигурация
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
 
-server.listen(PORT, HOST, () => {
-  console.log(`╔════════════════════════════════════════╗`);
-  console.log(`║      🎵 LynchFM Radio Server 🎵      ║`);
-  console.log(`╚════════════════════════════════════════╝`);
-  console.log(`📻 Сервер запущен на ${HOST}:${PORT}`);
-  console.log(`🌐 Откройте http://localhost:${PORT} в браузере`);
-  console.log(`🚀 Готов к продакшену`);
-  console.log(`══════════════════════════════════════════`);
+// Статика для фронтенда
+app.use(express.static(__dirname));
+app.use(express.json());
+
+// Хранение клиентов
+const clients = new Set();
+let broadcaster = null;
+
+// Основные маршруты
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/studio', (req, res) => {
+    res.sendFile(path.join(__dirname, 'studio.html'));
+});
+
+app.get('/broadcaster', (req, res) => {
+    res.sendFile(path.join(__dirname, 'broadcaster.html'));
+});
+
+app.get('/status', (req, res) => {
+    res.json({
+        status: 'online',
+        broadcasterConnected: !!broadcaster,
+        listeners: clients.size,
+        uptime: process.uptime()
+    });
+});
+
+// WebSocket обработка
+wss.on('connection', (ws, req) => {
+    console.log('Новое WebSocket соединение');
+    
+    ws.on('message', (message) => {
+        try {
+            // Если это бинарные данные (аудио)
+            if (message instanceof Buffer) {
+                // Рассылаем всем слушателям
+                clients.forEach(client => {
+                    if (client !== ws && client.readyState === WebSocket.OPEN) {
+                        client.send(message);
+                    }
+                });
+                
+                // Логируем размер аудио данных
+                console.log(Аудио данные: ${message.length} байт);
+                return;
+            }
+            
+            // Если это текстовое сообщение
+            if (typeof message === 'string') {
+                const data = JSON.parse(message);
+                
+                switch(data.type) {
+                    case 'register-broadcaster':
+                        broadcaster = ws;
+                        console.log('🎤 Broadcaster зарегистрирован');
+                        ws.send(JSON.stringify({ type: 'registered', role: 'broadcaster' }));
+                        break;
+                        
+                    case 'register-listener':
+                        clients.add(ws);
+                        console.log('👂 Новый слушатель, всего:', clients.size);
+                        ws.send(JSON.stringify({ 
+                            type: 'registered', 
+                            role: 'listener',
+                            listenersCount: clients.size
+                        }));
+                        break;
+                        
+                    case 'chat-message':
+                        // Рассылаем сообщение чата всем
+                        const chatMessage = {
+                            type: 'chat-message',
+                            user: data.user || 'Аноним',
+                            text: data.text,
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        clients.forEach(client => {
+                            if (client.readyState === WebSocket.OPEN) {
+                                client.send(JSON.stringify(chatMessage));
+                            }
+                        });
+                        break;
+                        
+                    case 'track-info':
+                        // Рассылаем информацию о треке
+                        clients.forEach(client => {
+                            if (client.readyState === WebSocket.OPEN) {
+                                client.send(JSON.stringify({
+                                    type: 'track-info',
+                                    track: data.track,
+                                    artist: data.artist,
+
+duration: data.duration
+                                }));
+                            }
+                        });
+                        break;
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка обработки сообщения:', error);
+        }
+    });
+    
+    ws.on('close', () => {
+        console.log('Соединение закрыто');
+        
+        // Удаляем из клиентов
+        clients.delete(ws);
+        
+        // Если отключился broadcaster
+        if (ws === broadcaster) {
+            broadcaster = null;
+            console.log('🎤 Broadcaster отключился');
+            
+            // Уведомляем слушателей
+            clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({
+                        type: 'broadcaster-offline',
+                        message: 'Ведущий отключился'
+                    }));
+                }
+            });
+        }
+        
+        console.log('Осталось слушателей:', clients.size);
+    });
+    
+    ws.on('error', (error) => {
+        console.error('WebSocket ошибка:', error);
+    });
+});
+
+// API эндпоинты
+app.get('/api/stats', (req, res) => {
+    res.json({
+        listeners: clients.size,
+        broadcasterConnected: !!broadcaster,
+        serverTime: new Date().toISOString(),
+        memoryUsage: process.memoryUsage()
+    });
+});
+
+app.post('/api/broadcast', (req, res) => {
+    const { message } = req.body;
+    
+    if (!message) {
+        return res.status(400).json({ error: 'Сообщение обязательно' });
+    }
+    
+    // Отправляем системное сообщение всем
+    const systemMessage = {
+        type: 'system-message',
+        message: message,
+        timestamp: new Date().toISOString()
+    };
+    
+    clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(systemMessage));
+        }
+    });
+    
+    res.json({ success: true, sentTo: clients.size });
+});
+
+// Запуск сервера
+server.listen(PORT, () => {
+    console.log(
+    🎧 LynchFM Radio Server
+    ==========================
+    📡 HTTP:  http://localhost:${PORT}
+    📡 HTTPS: https://lynchfm-backend.onrender.com
+    🎙️  Студия: /studio
+    📻 Слушатели: /
+    📊 Статус: /status
+    ==========================
+    Сервер запущен на порту ${PORT}
+    );
+});
+
+// Обработка завершения
+process.on('SIGINT', () => {
+    console.log('Завершение работы сервера...');
+    
+    // Закрываем все соединения
+    wss.clients.forEach(client => {
+        client.close();
+    });
+    
+    server.close(() => {
+        console.log('Сервер остановлен');
+        process.exit(0);
+    });
 });

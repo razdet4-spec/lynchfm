@@ -14,7 +14,8 @@ function createWindow() {
             nodeIntegration: true,
             contextIsolation: false,
             enableRemoteModule: true,
-            webSecurity: false
+            webSecurity: false,
+            allowRunningInsecureContent: true
         },
         icon: path.join(__dirname, 'assets', 'icon.png'),
         titleBarStyle: 'default',
@@ -32,13 +33,40 @@ function createWindow() {
         mainWindow = null;
     });
 
-    // Открываем DevTools в режиме разработки
-    if (process.env.NODE_ENV === 'development') {
-        mainWindow.webContents.openDevTools();
-    }
+    // Открываем DevTools для отладки (всегда)
+    // mainWindow.webContents.openDevTools();
+    
+    // Обработка запросов на доступ к медиа
+    mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+        console.log('Запрос разрешения:', permission);
+        // Разрешаем все запросы на доступ к медиа
+        if (permission === 'media' || permission === 'microphone' || permission === 'camera') {
+            callback(true);
+        } else {
+            callback(false);
+        }
+    });
+    
+    // Обработка проверки разрешений
+    mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+        if (permission === 'media' || permission === 'microphone' || permission === 'camera') {
+            return true;
+        }
+        return false;
+    });
 }
 
+// Разрешения для доступа к медиа устройствам
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('enable-features', 'WebRTC-H264WithOpenH264FFmpeg');
+
 app.whenReady().then(() => {
+    // Запрашиваем разрешения на доступ к медиа
+    if (process.platform === 'win32') {
+        // Windows - разрешения запрашиваются через системные диалоги
+        console.log('Windows detected - media permissions will be requested via system dialogs');
+    }
+    
     createWindow();
 
     app.on('activate', () => {

@@ -1,10 +1,6 @@
 // Инициализация Socket.io
-// Для Netlify деплоя: используйте URL Render сервера
-// Для локальной разработки: оставьте пустым (будет localhost)
-const SERVER_URL = window.location.hostname === 'localhost' 
-  ? '' 
-  : 'https://lynchfm-backend.onrender.com'; // ЗАМЕНИТЕ на ваш Render URL!
-const socket = io(SERVER_URL);
+// Используем текущий домен - все работает на одном сервере (Render)
+const socket = io();
 let audioContext = null;
 let analyser = null;
 let peerConnections = {};

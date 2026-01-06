@@ -29,7 +29,10 @@
                 <h2>Настройки подключения</h2>
                 <div class="form-group">
                     <label for="serverUrl">URL сервера:</label>
-                    <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="http://your-domain.com">
+                    <input type="text" id="serverUrl" value="https://lynchfm-backend.onrender.com" placeholder="https://your-domain.com">
+                    <small style="color: #94a3b8; margin-top: 0.5rem; display: block;">
+                        Введите URL вашей радиостанции (например: https://lynchfm-backend.onrender.com)
+                    </small>
                 </div>
                 <div class="form-group">
                     <label for="audioSource">Источник звука:</label>
@@ -49,8 +52,10 @@
                     </select>
                     <button class="btn btn-small" id="refreshDevicesBtn" style="margin-top: 0.5rem;">Обновить список</button>
                 </div>
-                <button class="btn btn-primary" id="connectBtn">Подключиться</button>
+                <button class="btn btn-primary" id="connectBtn">Подключиться к серверу</button>
                 <button class="btn btn-danger" id="disconnectBtn" style="display: none;">Отключиться</button>
+                <button class="btn btn-secondary" id="startBroadcastBtn" style="display: none; margin-top: 0.5rem;">Начать трансляцию</button>
+                <button class="btn btn-danger" id="stopBroadcastBtn" style="display: none; margin-top: 0.5rem;">Остановить трансляцию</button>
             </div>
 
             <div class="broadcast-panel">

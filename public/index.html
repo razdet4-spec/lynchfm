@@ -3,65 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LynchFM Radio</title>
+    <title>LynchFM - Слушатели</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0f0c29, #302b63);
-            color: white;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            margin: 0;
             padding: 20px;
+            background: #0a0a0a;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
         }
         .container {
             max-width: 500px;
-            width: 100%;
-            text-align: center;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 20px;
-            padding: 40px 30px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
+            margin: 50px auto;
+            padding: 30px;
+            background: #1a1a1a;
+            border-radius: 10px;
+            border: 1px solid #333;
         }
         h1 {
-            font-size: 2.8em;
-            margin-bottom: 10px;
-            background: linear-gradient(45deg, #00d4ff, #0088ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #00a8ff;
+            margin-bottom: 30px;
         }
         .status {
-            padding: 12px;
-            border-radius: 10px;
+            padding: 10px;
+            border-radius: 5px;
             margin: 20px 0;
             font-weight: bold;
         }
-        .offline { background: rgba(255, 50, 50, 0.2); color: #ff3232; }
-        .online { background: rgba(0, 255, 100, 0.2); color: #00ff64; }
-        .broadcast { background: rgba(255, 0, 0, 0.2); color: #ff0000; }
+        .offline {
+            background: #ff4444;
+            color: white;
+        }
+        .online {
+            background: #44ff44;
+            color: #000;
+        }
+        .broadcast {
+            background: #ff4444;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
         audio {
             width: 100%;
             margin: 20px 0;
-            border-radius: 10px;
-            background: rgba(0, 0, 0, 0.3);
         }
-        .info {
-            margin-top: 30px;
+        #nowPlaying {
+            margin-top: 20px;
             color: #888;
-            font-size: 0.9em;
+            min-height: 24px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>LynchFM</h1>
+        <h1>🎧 LynchFM</h1>
         <div class="status offline" id="status">ОФФЛАЙН</div>
-        <audio id="player" controls autoplay>Ваш браузер не поддерживает аудио</audio>
-        <div id="nowPlaying">Ожидание трансляции...</div>
-        <div class="info">Прямой эфир в реальном времени</div>
+        <audio id="player" controls autoplay></audio>
+        <div id="nowPlaying">Ожидание начала эфира...</div>
     </div>
 
     <script>
@@ -69,44 +73,38 @@
         const statusEl = document.getElementById('status');
         const nowPlayingEl = document.getElementById('nowPlaying');
         
-        // WebSocket
-        const ws = new WebSocket("wss://" + window.location.host);
-        let currentTrack = null;
+        // Используем wss:// если на HTTPS, иначе ws://
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const wsUrl = protocol + window.location.host;
+        
+        const ws = new WebSocket(wsUrl);
         
         ws.onopen = () => {
             statusEl.textContent = 'ОНЛАЙН';
             statusEl.className = 'status online';
-            nowPlayingEl.textContent = 'Ожидание эфира...';
+            nowPlayingEl.textContent = 'Готов к приему эфира...';
+            console.log('Подключено к серверу');
         };
         
         ws.onmessage = (event) => {
-            // Если это аудио
+            // Если пришел Blob (аудио данные)
             if (event.data instanceof Blob) {
                 const url = URL.createObjectURL(event.data);
                 player.src = url;
                 
                 statusEl.textContent = 'В ЭФИРЕ';
                 statusEl.className = 'status broadcast';
-                
-                if (currentTrack) {
-                    nowPlayingEl.textContent = currentTrack;
-                    currentTrack = null;
-                } else {
-                    nowPlayingEl.textContent = 'Прямой эфир';
-                }
-                return;
+                nowPlayingEl.textContent = 'Прямой эфир';
             }
-            
-            // Если это текст (информация о треке)
-            if (typeof event.data === 'string') {
+            // Если пришел текст (информация о треке)
+            else if (typeof event.data === 'string') {
                 try {
                     const data = JSON.parse(event.data);
                     if (data.type === 'track') {
-                        currentTrack = data.artist + " - " + data.title;
-                        nowPlayingEl.textContent = 'Следующий: ' + currentTrack;
+                        nowPlayingEl.textContent = `${data.artist} - ${data.title}`;
                     }
                 } catch(e) {
-                    console.log('Текст:', event.data);
+                    // Просто игнорируем если не JSON
                 }
             }
         };
@@ -114,7 +112,16 @@
         ws.onclose = () => {
             statusEl.textContent = 'ОФФЛАЙН';
             statusEl.className = 'status offline';
-            setTimeout(() => location.reload(), 3000);
+            nowPlayingEl.textContent = 'Соединение потеряно...';
+            
+            // Пытаемся переподключиться через 5 секунд
+            setTimeout(() => {
+                location.reload();
+            }, 5000);
+        };
+        
+        ws.onerror = (error) => {
+            console.error('WebSocket ошибка:', error);
         };
     </script>
 </body>

@@ -14,26 +14,33 @@
             padding: 20px;
         }
         .container {
-            max-width: 800px;
+            max-width: 1000px;
             margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
         }
-        h1 {
-            text-align: center;
-            color: #00ffff;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        .subtitle {
-            text-align: center;
-            color: #888;
-            margin-bottom: 30px;
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
         }
         .panel {
             background: rgba(255, 255, 255, 0.05);
             border-radius: 15px;
             padding: 25px;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            margin-bottom: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #00ffff;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            grid-column: 1 / -1;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            grid-column: 1 / -1;
         }
         .status {
             padding: 15px;
@@ -81,6 +88,10 @@
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(255, 65, 108, 0.4);
         }
+        .btn-success {
+            background: linear-gradient(45deg, #00b09b, #96c93d);
+            color: white;
+        }
         select {
             width: 100%;
             padding: 10px;
@@ -121,14 +132,60 @@
             font-size: 0.9em;
             color: #aaa;
         }
+        .drop-zone {
+            border: 2px dashed #00ffff;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .drop-zone:hover {
+            background: rgba(0, 255, 255, 0.1);
+        }
+        .playlist {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        .playlist-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .playlist-item.current {
+            background: rgba(0, 255, 255, 0.2);
+            border-left: 4px solid #00ffff;
+        }
+        .music-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .music-controls button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
+    <h1>🎙️ LynchFM Студия</h1>
+    <div class="subtitle">Трансляция микрофона + MP3 файлов</div>
+    
     <div class="container">
-        <h1>🎙️ LynchFM Студия</h1>
-        <div class="subtitle">Панель управления трансляцией</div>
-        
+        <!-- Левая колонка: Микрофон и трансляция -->
         <div class="panel">
+            <h2>🎤 Трансляция</h2>
+            
             <div id="status" class="status offline">
                 ❌ Не подключено к серверу
             </div>
@@ -159,15 +216,48 @@
                     <div class="stat-value" id="uptime">0:00</div>
                     <div class="stat-label">В эфире</div>
                 </div>
+                <div class="stat">
+                    <div class="stat-value" id="bitrate">0</div>
+                    <div class="stat-label">kbps</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Правая колонка: MP3 плейлист -->
+        <div class="panel">
+            <h2>🎵 MP3 Плейлист</h2>
+            
+            <div class="drop-zone" id="dropZone">
+                📁 Перетащите MP3 файлы сюда<br>
+                <small>или нажмите для выбора</small>
+            </div>
+            <input type="file" id="fileInput" accept="audio/mp3,audio/*" multiple style="display: none;">
+            
+            <div class="music-controls">
+                <button id="playMusicBtn" class="btn-success" disabled>▶️ Воспроизвести</button>
+                <button id="pauseMusicBtn" disabled>⏸️ Пауза</button>
+                <button id="stopMusicBtn" disabled>⏹️ Стоп</button>
+                <button id="nextTrackBtn" disabled>⏭️ Следующий</button>
+            </div>
+            
+            <div class="playlist" id="playlist">
+                <div class="playlist-item">Плейлист пуст</div>
+            </div>
+            
+            <div style="margin-top: 15px; color: #888; font-size: 0.9em;">
+                MP3 файлы будут микшироваться с микрофоном в прямом эфире
             </div>
         </div>
     </div>
 
+    <!-- Скрытый аудио элемент для MP3 -->
+    <audio id="musicPlayer" crossorigin="anonymous" style="display: none;"></audio>
+
     <script>
-        // Конфигурация
+        // ============= КОНФИГУРАЦИЯ =============
         const SERVER_URL = 'wss://' + window.location.host;
         
-        // Состояние
+        // ============= СОСТОЯНИЕ =============
         let ws = null;
         let mediaRecorder = null;
         let audioContext = null;
@@ -175,8 +265,14 @@
         let audioStream = null;
         let isBroadcasting = false;
         let startTime = null;
+        let bytesSent = 0;
         
-        // Элементы
+        let playlist = [];
+        let currentTrack = null;
+        let isMusicPlaying = false;
+        let musicPlayer = document.getElementById('musicPlayer');
+        
+        // ============= ЭЛЕМЕНТЫ =============
         const statusEl = document.getElementById('status');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
@@ -184,8 +280,17 @@
         const levelFill = document.getElementById('levelFill');
         const listenersCountEl = document.getElementById('listenersCount');
         const uptimeEl = document.getElementById('uptime');
+        const bitrateEl = document.getElementById('bitrate');
         
-        // Подключение к серверу
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const playlistEl = document.getElementById('playlist');
+        const playMusicBtn = document.getElementById('playMusicBtn');
+        const pauseMusicBtn = document.getElementById('pauseMusicBtn');
+        const stopMusicBtn = document.getElementById('stopMusicBtn');
+        const nextTrackBtn = document.getElementById('nextTrackBtn');
+        
+        // ============= WEB SOCKET =============
         function connectToServer() {
             console.log('Подключение к серверу:', SERVER_URL);
             ws = new WebSocket(SERVER_URL);
@@ -194,10 +299,8 @@
                 console.log('✅ Подключено к серверу');
                 updateStatus('✅ Подключено к серверу', 'online');
                 
-                // Регистрируемся как ведущий
                 ws.send(JSON.stringify({
                     type: 'register-broadcaster',
-                    name: 'Ведущий',
                     timestamp: Date.now()
                 }));
             };
@@ -224,7 +327,6 @@
                     stopBroadcast();
                 }
                 
-                // Переподключение через 3 секунды
                 setTimeout(connectToServer, 3000);
             };
             
@@ -233,7 +335,196 @@
             };
         }
         
-        // Начало трансляции - ФИКСИРОВАННАЯ ВЕРСИЯ
+        // ============= MP3 ПЛЕЙЛИСТ =============
+        function setupMP3Playlist() {
+            // Обработка перетаскивания
+            dropZone.addEventListener('click', () => fileInput.click());
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.style.background = 'rgba(0, 255, 255, 0.1)';
+            });
+            
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.style.background = '';
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.style.background = '';
+                handleFiles(e.dataTransfer.files);
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                handleFiles(e.target.files);
+            });
+            
+            // Кнопки управления
+            playMusicBtn.addEventListener('click', playCurrentTrack);
+            pauseMusicBtn.addEventListener('click', togglePause);
+            stopMusicBtn.addEventListener('click', stopMusic);
+            nextTrackBtn.addEventListener('click', playNextTrack);
+            
+            // События аудиоплеера
+            musicPlayer.addEventListener('play', () => {
+                isMusicPlaying = true;
+                updateMusicControls();
+            });
+            
+            musicPlayer.addEventListener('pause', () => {
+                isMusicPlaying = false;
+                updateMusicControls();
+            });
+            
+            musicPlayer.addEventListener('ended', () => {
+                isMusicPlaying = false;
+                playNextTrack();
+            });
+        }
+        
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (!file.type.startsWith('audio/') && !file.name.toLowerCase().endsWith('.mp3')) {
+                    console.log('Не аудио файл:', file.name);
+                    return;
+                }
+                
+                const track = {
+                    id: Date.now() + Math.random(),
+                    name: file.name.replace('.mp3', '').replace(/_/g, ' '),
+                    file: file,
+                    url: URL.createObjectURL(file)
+                };
+                
+                playlist.push(track);
+                addTrackToPlaylist(track);
+            });
+            
+            updateMusicControls();
+        }
+        
+        function addTrackToPlaylist(track) {
+            // Убираем сообщение "плейлист пуст"
+            const emptyMsg = playlistEl.querySelector('.playlist-item:first-child');
+            if (emptyMsg && emptyMsg.textContent.includes('пуст')) {
+                emptyMsg.remove();
+            }
+            
+            const item = document.createElement('div');
+            item.className = 'playlist-item';
+            item.dataset.id = track.id;
+            item.innerHTML = `
+                <span>${track.name}</span>
+                <div>
+                    <button onclick="playTrackById('${track.id}')" style="margin-right: 5px;">▶️</button>
+                    <button onclick="removeTrackById('${track.id}')">🗑️</button>
+                </div>
+            `;
+            
+            playlistEl.appendChild(item);
+        }
+        
+        function playTrackById(trackId) {
+            const track = playlist.find(t => t.id === trackId);
+            if (!track) return;
+            
+            currentTrack = track;
+            musicPlayer.src = track.url;
+            musicPlayer.play();
+            isMusicPlaying = true;
+            
+            updatePlaylistHighlight();
+            updateMusicControls();
+            console.log('Воспроизведение трека:', track.name);
+        }
+        
+        function playCurrentTrack() {
+            if (playlist.length === 0) return;
+            
+            if (!currentTrack) {
+                currentTrack = playlist[0];
+            }
+            
+            playTrackById(currentTrack.id);
+        }
+        
+        function togglePause() {
+            if (musicPlayer.paused) {
+                musicPlayer.play();
+            } else {
+                musicPlayer.pause();
+            }
+        }
+        
+        function stopMusic() {
+            musicPlayer.pause();
+            musicPlayer.currentTime = 0;
+            isMusicPlaying = false;
+            updateMusicControls();
+        }
+        
+        function playNextTrack() {
+            if (!currentTrack || playlist.length === 0) return;
+            
+            const currentIndex = playlist.findIndex(t => t.id === currentTrack.id);
+            const nextIndex = (currentIndex + 1) % playlist.length;
+            
+            playTrackById(playlist[nextIndex].id);
+        }
+        
+        function removeTrackById(trackId) {
+            const index = playlist.findIndex(t => t.id === trackId);
+            if (index === -1) return;
+            
+            URL.revokeObjectURL(playlist[index].url);
+            
+            if (currentTrack && currentTrack.id === trackId) {
+                stopMusic();
+                currentTrack = null;
+            }
+            
+            playlist.splice(index, 1);
+            
+            const item = document.querySelector(`[data-id="${trackId}"]`);
+            if (item) item.remove();
+            
+            if (playlist.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.className = 'playlist-item';
+                emptyMsg.textContent = 'Плейлист пуст';
+                playlistEl.appendChild(emptyMsg);
+            }
+            
+            updateMusicControls();
+        }
+        
+        function updatePlaylistHighlight() {
+            document.querySelectorAll('.playlist-item').forEach(item => {
+                item.classList.remove('current');
+                if (item.dataset.id === currentTrack?.id) {
+                    item.classList.add('current');
+                }
+            });
+        }
+        
+        function updateMusicControls() {
+            const hasTracks = playlist.length > 0;
+            const canPlay = hasTracks && !isMusicPlaying;
+            const canPauseStop = isMusicPlaying;
+            
+            playMusicBtn.disabled = !canPlay;
+            pauseMusicBtn.disabled = !canPauseStop;
+            stopMusicBtn.disabled = !canPauseStop;
+            nextTrackBtn.disabled = !hasTracks;
+            
+            pauseMusicBtn.textContent = musicPlayer.paused ? '▶️ Продолжить' : '⏸️ Пауза';
+        }
+        
+        // Глобальные функции для кнопок в playlist
+        window.playTrackById = playTrackById;
+        window.removeTrackById = removeTrackById;
+        
+        // ============= ТРАНСЛЯЦИЯ (Микрофон + MP3) =============
         async function startBroadcast() {
             if (isBroadcasting) return;
             
@@ -251,12 +542,29 @@
                 
                 audioStream = await navigator.mediaDevices.getUserMedia(constraints);
                 
-                // Создаем анализатор для визуализации
+                // Создаем AudioContext для микширования
                 audioContext = new AudioContext();
-                const source = audioContext.createMediaStreamSource(audioStream);
+                
+                // Подключаем микрофон
+                const micSource = audioContext.createMediaStreamSource(audioStream);
+                
+                // Создаем анализатор для визуализации
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 256;
-                source.connect(analyser);
+                
+                // Создаем узел назначения для записи
+                const destination = audioContext.createMediaStreamDestination();
+                
+                // Подключаем микрофон к анализатору и записи
+                micSource.connect(analyser);
+                micSource.connect(destination);
+                
+                // Если играет музыка, подключаем ее к микшеру
+                if (isMusicPlaying && musicPlayer.src) {
+                    const musicSource = audioContext.createMediaElementSource(musicPlayer);
+                    musicSource.connect(destination);
+                    console.log('MP3 подключен к микшеру трансляции');
+                }
                 
                 // Обновляем уровень громкости
                 function updateAudioLevel() {
@@ -287,29 +595,30 @@
                 
                 updateAudioLevel();
                 
-                // НАСТРОЙКИ ДЛЯ НЕПРЕРЫВНОГО АУДИО
+                // Настройки MediaRecorder
                 const options = {
                     mimeType: 'audio/webm;codecs=opus',
                     audioBitsPerSecond: 128000
                 };
                 
-                // Проверяем поддержку codec
+                // Проверяем поддержку
                 if (!MediaRecorder.isTypeSupported(options.mimeType)) {
                     console.log('WebM/Opus не поддерживается, используем default');
                     options.mimeType = '';
                 }
                 
-                mediaRecorder = new MediaRecorder(audioStream, options);
+                // Создаем MediaRecorder из микшированного потока
+                mediaRecorder = new MediaRecorder(destination.stream, options);
                 
-                // ФИКС: отправляем каждый чанк сразу, а не собираем
+                // Отправляем аудио чанки
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
-                        // Отправляем как есть
+                        bytesSent += event.data.size;
                         ws.send(event.data);
                     }
                 };
                 
-                // Стартуем с интервалом 500мс для плавности
+                // Стартуем запись
                 mediaRecorder.start(500);
                 
                 // Обновляем состояние
@@ -317,7 +626,7 @@
                 startTime = Date.now();
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
-                updateStatus('🔴 В ЭФИРЕ', 'broadcasting');
+                updateStatus('🔴 В ЭФИРЕ (Микрофон' + (isMusicPlaying ? ' + MP3' : '') + ')', 'broadcasting');
                 
                 console.log('🎤 Трансляция начата');
                 
@@ -331,13 +640,21 @@
                     }
                 }, 1000);
                 
+                // Обновляем битрейт
+                setInterval(() => {
+                    if (isBroadcasting) {
+                        const kbps = Math.round((bytesSent * 8) / 1000);
+                        bitrateEl.textContent = kbps;
+                        bytesSent = 0;
+                    }
+                }, 1000);
+                
             } catch (error) {
                 console.error('Ошибка начала трансляции:', error);
                 alert('Не удалось начать трансляцию: ' + error.message);
             }
         }
         
-        // Остановка трансляции
         function stopBroadcast() {
             if (!isBroadcasting) return;
             
@@ -361,13 +678,11 @@
             console.log('🛑 Трансляция остановлена');
         }
         
-        // Обновление статуса
         function updateStatus(text, type) {
             statusEl.textContent = text;
             statusEl.className = `status ${type}`;
         }
         
-        // Загрузка аудиоустройств
         async function loadAudioDevices() {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -384,15 +699,16 @@
             }
         }
         
-        // Инициализация
+        // ============= ИНИЦИАЛИЗАЦИЯ =============
         window.addEventListener('load', async () => {
             await loadAudioDevices();
+            setupMP3Playlist();
             connectToServer();
             
             startBtn.addEventListener('click', startBroadcast);
             stopBtn.addEventListener('click', stopBroadcast);
             
-            // Остановка при закрытии страницы
+            // Очистка при закрытии
             window.addEventListener('beforeunload', () => {
                 if (isBroadcasting) {
                     stopBroadcast();
@@ -400,6 +716,11 @@
                 if (ws) {
                     ws.close();
                 }
+                
+                // Освобождаем URL треков
+                playlist.forEach(track => {
+                    URL.revokeObjectURL(track.url);
+                });
             });
         });
     </script>

@@ -2,35 +2,45 @@ const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
-const clients = new Set();
-let broadcaster = null;
 
-// Раздаем статические файлы
-app.use(express.static(__dirname));
+// Проверяем существование файлов
+console.log("Проверка файлов:");
+console.log("index.html существует:", fs.existsSync(path.join(__dirname, "public", "index.html")));
+console.log("studio.html существует:", fs.existsSync(path.join(__dirname, "studio.html")));
 
-// Главная страница для слушателей
+// Раздаем статические файлы из папки public
+app.use(express.static(path.join(__dirname, "public")));
+
+// Главная страница - index.html из папки public
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "index.html"));
+    const indexPath = path.join(__dirname, "public", "index.html");
+    console.log("Запрос /, отправляем:", indexPath);
+    res.sendFile(indexPath);
 });
 
-// Студия для ведущего
+// Студия для ведущего - studio.html из корня
 app.get("/studio", (req, res) => {
-    res.sendFile(path.join(__dirname, "studio.html"));
+    const studioPath = path.join(__dirname, "studio.html");
+    console.log("Запрос /studio, отправляем:", studioPath);
+    res.sendFile(studioPath);
 });
 
-// Простой статус
+// API эндпоинты
 app.get("/status", (req, res) => {
     res.json({ 
         status: "online", 
-        broadcaster: !!broadcaster,
-        listeners: clients.size,
-        time: new Date().toISOString() 
+        time: new Date().toISOString(),
+        files: {
+            index: fs.existsSync(path.join(__dirname, "public", "index.html")),
+            studio: fs.existsSync(path.join(__dirname, "studio.html"))
+        }
     });
 });
 
@@ -39,76 +49,39 @@ wss.on("connection", (ws) => {
     console.log("✅ Новое WebSocket соединение");
     
     ws.on("message", (message) => {
-        try {
-            // Если это бинарные данные (аудио)
-            if (message instanceof Buffer || message instanceof ArrayBuffer) {
-                const data = Buffer.from(message);
-                console.log(`📊 Аудио данные: ${data.length} байт`);
-                
-                // Рассылаем всем слушателям
-                clients.forEach(client => {
-                    if (client !== ws && client.readyState === WebSocket.OPEN) {
-                        client.send(data);
-                    }
-                });
-                return;
-            }
-            
-            // Если это текстовое сообщение
-            if (typeof message === "string") {
-                const data = JSON.parse(message);
-                console.log(`📨 Сообщение: ${data.type || "unknown"}`);
-                
-                switch(data.type) {
-                    case "register-broadcaster":
-                        broadcaster = ws;
-                        console.log("🎤 Broadcaster зарегистрирован");
-                        ws.send(JSON.stringify({ type: "registered", role: "broadcaster" }));
-                        break;
-                        
-                    case "register-listener":
-                        clients.add(ws);
-                        console.log("👂 Новый слушатель, всего:", clients.size);
-                        ws.send(JSON.stringify({ 
-                            type: "registered", 
-                            role: "listener",
-                            listenersCount: clients.size
-                        }));
-                        break;
-                        
-                    case "ping":
-                        ws.send(JSON.stringify({ type: "pong", time: Date.now() }));
-                        break;
+        // Если это бинарные данные (аудио)
+        if (message instanceof Buffer || message instanceof ArrayBuffer) {
+            // Пересылаем всем другим клиентам
+            wss.clients.forEach((client) => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                    client.send(message);
                 }
+            });
+            return;
+        }
+        
+        // Если это текстовое сообщение
+        if (typeof message === "string") {
+            console.log(📨 Сообщение от клиента: ${message.substring(0, 100)});
+            
+            try {
+                const data = JSON.parse(message);
+                if (data.type === "register-broadcaster") {
+                    console.log("🎤 Broadcaster зарегистрирован");
+                    ws.send(JSON.stringify({ type: "registered", role: "broadcaster" }));
+                }
+                if (data.type === "register-listener") {
+                    console.log("👂 Новый слушатель");
+                    ws.send(JSON.stringify({ type: "registered", role: "listener" }));
+                }
+            } catch (e) {
+                // Игнорируем ошибки парсинга
             }
-        } catch (error) {
-            console.error("❌ Ошибка обработки сообщения:", error);
         }
     });
     
     ws.on("close", () => {
         console.log("🔌 Соединение закрыто");
-        
-        // Удаляем из клиентов
-        clients.delete(ws);
-        
-        // Если отключился broadcaster
-        if (ws === broadcaster) {
-            broadcaster = null;
-            console.log("🎤 Broadcaster отключился");
-            
-            // Уведомляем слушателей
-            clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({
-                        type: "broadcaster-offline",
-                        message: "Ведущий отключился"
-                    }));
-                }
-            });
-        }
-        
-        console.log("👥 Осталось слушателей:", clients.size);
     });
     
     ws.on("error", (error) => {
@@ -116,15 +89,20 @@ wss.on("connection", (ws) => {
     });
 });
 
+// Обработка ошибок 404
+app.use((req, res) => {
+    res.status(404).send("Страница не найдена");
+});
+
 // Запуск сервера
 server.listen(PORT, () => {
     console.log("=========================================");
-    console.log(`🚀 LynchFM Radio Server запущен!`);
-    console.log(`📡 Порт: ${PORT}`);
-    console.log(`🌐 URL: http://localhost:${PORT}`);
-    console.log(`🎙️ Студия: http://localhost:${PORT}/studio`);
-    console.log(`📻 Слушатели: http://localhost:${PORT}/`);
-    console.log(`=========================================`);
+    console.log(🚀 LynchFM Radio Server запущен!);
+    console.log(📡 Порт: ${PORT});
+    console.log(🌐 URL: http://localhost:${PORT});
+    console.log(🎙️ Студия: http://localhost:${PORT}/studio);
+    console.log(📻 Слушатели: http://localhost:${PORT}/);
+    console.log("=========================================");
 });
 
 // Graceful shutdown

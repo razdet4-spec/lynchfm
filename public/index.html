@@ -2,264 +2,306 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <meta name="description" content="LynchFM - Профессиональная интернет-радиостанция. Прямой эфир, лучшая музыка, живое вещание 24/7">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="keywords" content="радио, LynchFM, интернет радио, онлайн радио, музыка, прямой эфир">
-    <meta property="og:title" content="LynchFM - 88.8 FM">
-    <meta property="og:description" content="Профессиональная интернет-радиостанция с прямым вещанием">
-    <meta property="og:type" content="website">
-    <title>LynchFM - 88.8 FM | Интернет Радио</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📻 LynchFM Radio - Прямой эфир</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 40px 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            font-size: 2.8em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00d4ff, #0088ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            color: #aaa;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .player-container {
+            margin: 30px 0;
+        }
+        audio {
+            width: 100%;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .status-online {
+            background: rgba(0, 255, 100, 0.15);
+            border: 1px solid #00ff64;
+            color: #00ff64;
+        }
+        .status-offline {
+            background: rgba(255, 50, 50, 0.15);
+            border: 1px solid #ff3232;
+            color: #ff3232;
+        }
+        .status-broadcast {
+            background: rgba(255, 0, 0, 0.15);
+            border: 1px solid #ff0000;
+            color: #ff0000;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .info-panel {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+        .stat {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .stat-label {
+            color: #aaa;
+            font-size: 0.9em;
+        }
+        .link {
+            margin-top: 20px;
+        }
+        .link a {
+            color: #00d4ff;
+            text-decoration: none;
+            font-size: 1em;
+            padding: 10px 20px;
+            border: 1px solid #00d4ff;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+        .link a:hover {
+            background: rgba(0, 212, 255, 0.1);
+        }
+        .now-playing {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            font-style: italic;
+            min-height: 24px;
+        }
+    </style>
 </head>
 <body>
-    <!-- Навигация -->
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <div class="logo-icon">🎵</div>
-                <div class="logo-text">
-                    <span class="logo-name">LynchFM</span>
-                    <span class="logo-frequency">88.8 FM</span>
-                </div>
+    <div class="container">
+        <h1>📻 LynchFM</h1>
+        <div class="subtitle">Прямой эфир в реальном времени</div>
+        
+        <div class="player-container">
+            <audio id="audioPlayer" controls autoplay>
+                Ваш браузер не поддерживает аудиоплеер
+            </audio>
+        </div>
+        
+        <div id="status" class="status status-offline">
+            <div class="dot">●</div>
+            <span>Подключение к серверу...</span>
+        </div>
+        
+        <div id="nowPlaying" class="now-playing">
+            Ожидание начала эфира...
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="listenerCount">0</div>
+                <div class="stat-label">Слушателей</div>
             </div>
-            <div class="nav-menu">
-                <a href="#home" class="nav-link active">Главная</a>
-                <a href="#listen" class="nav-link">Слушать</a>
-                <a href="#about" class="nav-link">О нас</a>
-                <a href="#contact" class="nav-link">Контакты</a>
-            </div>
-            <div class="nav-status">
-                <span class="status-dot" id="statusDot"></span>
-                <span class="status-text" id="statusText">ОФФЛАЙН</span>
+            <div class="stat">
+                <div class="stat-value" id="bitrate">–</div>
+                <div class="stat-label">Качество</div>
             </div>
         </div>
-    </nav>
+        
+        <div class="info-panel">
+            <div class="link">
+                <a href="/studio">🎙️ Открыть студию для трансляции</a>
+            </div>
+            <div style="margin-top: 15px; font-size: 0.8em; color: #888;">
+                Работает в Chrome, Edge, Firefox, Safari
+            </div>
+        </div>
+    </div>
 
-    <!-- Главный экран -->
-    <section id="home" class="hero-section">
-        <div class="hero-background">
-            <div class="wave wave1"></div>
-            <div class="wave wave2"></div>
-            <div class="wave wave3"></div>
-        </div>
-        <div class="hero-content">
-            <div class="radio-display-container">
-                <div class="vinyl-wrapper">
-                    <div class="vinyl" id="vinyl">
-                        <div class="vinyl-grooves">
-                            <div class="groove"></div>
-                            <div class="groove"></div>
-                            <div class="groove"></div>
-                            <div class="groove"></div>
-                            <div class="groove"></div>
-                        </div>
-                        <div class="vinyl-center">
-                            <div class="center-hole"></div>
-                            <div class="center-label">
-                                <span class="label-text">LynchFM</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="needle" id="needle">
-                        <div class="needle-arm"></div>
-                        <div class="needle-tip"></div>
-                    </div>
-                </div>
+    <script>
+        // Элементы
+        const audioPlayer = document.getElementById('audioPlayer');
+        const statusEl = document.getElementById('status');
+        const nowPlayingEl = document.getElementById('nowPlaying');
+        const listenerCountEl = document.getElementById('listenerCount');
+        const bitrateEl = document.getElementById('bitrate');
+        
+        // WebSocket
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}`;
+        let ws = null;
+        
+        // Статистика
+        let lastBytes = 0;
+        let lastTime = Date.now();
+        
+        // Подключение к серверу
+        function connect() {
+            console.log('Подключаемся к:', wsUrl);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('✅ WebSocket подключен');
+                updateStatus('Подключено к серверу', 'online');
                 
-                <div class="track-info-card">
-                    <div class="track-cover" id="trackCover">
-                        <div class="cover-placeholder">
-                            <span class="cover-icon">🎵</span>
-                        </div>
-                    </div>
-                    <div class="track-details">
-                        <div class="track-title" id="trackTitle">Ожидание эфира...</div>
-                        <div class="track-artist" id="trackArtist">LynchFM</div>
-                        <div class="track-time">
-                            <span id="currentTime">--:--</span> / <span id="totalTime">--:--</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="player-controls">
-                <button class="play-btn" id="playBtn">
-                    <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M8 5v14l11-7z"/>
-                    </svg>
-                </button>
-                <div class="volume-control">
-                    <svg class="volume-icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-                    </svg>
-                    <input type="range" id="volumeSlider" min="0" max="100" value="70" class="volume-slider">
-                    <span class="volume-value" id="volumeValue">70%</span>
-                </div>
-            </div>
-
-            <div class="stats-bar">
-                <div class="stat-item">
-                    <div class="stat-icon">👥</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="listenersCount">0</div>
-                        <div class="stat-label">Слушателей</div>
-                    </div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="peakListeners">0</div>
-                        <div class="stat-label">Пик слушателей</div>
-                    </div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-icon">⏱️</div>
-                    <div class="stat-content">
-                        <div class="stat-value" id="uptime">00:00</div>
-                        <div class="stat-label">В эфире</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Секция прослушивания -->
-    <section id="listen" class="listen-section">
-        <div class="container">
-            <h2 class="section-title">Слушайте LynchFM</h2>
-            <div class="listen-options">
-                <div class="listen-card">
-                    <div class="card-icon">🌐</div>
-                    <h3>Веб-плеер</h3>
-                    <p>Слушайте прямо в браузере</p>
-                    <button class="card-btn" id="webPlayerBtn">Открыть плеер</button>
-                </div>
-                <div class="listen-card">
-                    <div class="card-icon">📱</div>
-                    <h3>Мобильное приложение</h3>
-                    <p>Скоро будет доступно</p>
-                    <button class="card-btn disabled" disabled>Скоро</button>
-                </div>
-                <div class="listen-card">
-                    <div class="card-icon">📻</div>
-                    <h3>Радио-приемник</h3>
-                    <p>Настройте на 88.8 FM</p>
-                    <button class="card-btn disabled" disabled>Инструкция</button>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- О нас -->
-    <section id="about" class="about-section">
-        <div class="container">
-            <h2 class="section-title">О LynchFM</h2>
-            <div class="about-content">
-                <div class="about-text">
-                    <p class="lead">LynchFM — это профессиональная интернет-радиостанция, которая объединяет лучшую музыку, живое вещание и современные технологии.</p>
-                    <p>Мы транслируем качественный звук 24/7, предлагая нашим слушателям разнообразный музыкальный контент и прямые эфиры от лучших диджеев.</p>
-                    <div class="features-grid">
-                        <div class="feature-item">
-                            <div class="feature-icon">🎵</div>
-                            <h4>Лучшая музыка</h4>
-                            <p>Тщательно отобранные треки</p>
-                        </div>
-                        <div class="feature-item">
-                            <div class="feature-icon">🎙️</div>
-                            <h4>Прямой эфир</h4>
-                            <p>Живое вещание от диджеев</p>
-                        </div>
-                        <div class="feature-item">
-                            <div class="feature-icon">🔊</div>
-                            <h4>Качественный звук</h4>
-                            <p>Высокое качество трансляции</p>
-                        </div>
-                        <div class="feature-item">
-                            <div class="feature-icon">🌍</div>
-                            <h4>Доступность</h4>
-                            <p>Слушайте из любой точки мира</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Контакты -->
-    <section id="contact" class="contact-section">
-        <div class="container">
-            <h2 class="section-title">Свяжитесь с нами</h2>
-            <div class="contact-content">
-                <div class="contact-info">
-                    <div class="contact-item">
-                        <div class="contact-icon">📧</div>
-                        <div>
-                            <h4>Email</h4>
-                            <p>info@lynchfm.com</p>
-                        </div>
-                    </div>
-                    <div class="contact-item">
-                        <div class="contact-icon">📱</div>
-                        <div>
-                            <h4>Телефон</h4>
-                            <p>+7 (XXX) XXX-XX-XX</p>
-                        </div>
-                    </div>
-                    <div class="contact-item">
-                        <div class="contact-icon">📍</div>
-                        <div>
-                            <h4>Адрес</h4>
-                            <p>Москва, Россия</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Футер -->
-    <footer class="footer">
-        <div class="container">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h3>LynchFM</h3>
-                    <p>Профессиональная интернет-радиостанция</p>
-                </div>
-                <div class="footer-section">
-                    <h4>Навигация</h4>
-                    <ul>
-                        <li><a href="#home">Главная</a></li>
-                        <li><a href="#listen">Слушать</a></li>
-                        <li><a href="#about">О нас</a></li>
-                        <li><a href="#contact">Контакты</a></li>
-                    </ul>
-                </div>
-                <div class="footer-section">
-                    <h4>Социальные сети</h4>
-                    <div class="social-links">
-                        <a href="#" class="social-link">VK</a>
-                        <a href="#" class="social-link">Telegram</a>
-                        <a href="#" class="social-link">YouTube</a>
-                    </div>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2024 LynchFM. Все права защищены.</p>
-            </div>
-        </div>
-    </footer>
-
-    <!-- Аудио элемент -->
-    <audio id="audioPlayer" preload="auto"></audio>
-
-    <!-- Scripts -->
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="app.js"></script>
+                // Регистрируемся как слушатель
+                ws.send(JSON.stringify({
+                    type: 'register-listener',
+                    userAgent: navigator.userAgent,
+                    timestamp: Date.now()
+                }));
+                
+                // Запускаем мониторинг битрейта
+                setInterval(updateBitrate, 1000);
+            };
+            
+            ws.onmessage = (event) => {
+                // Аудио данные (Blob или ArrayBuffer)
+                if (event.data instanceof Blob || event.data instanceof ArrayBuffer) {
+                    lastBytes += event.data.size || event.data.byteLength;
+                    
+                    // Простой метод для всех браузеров
+                    if (event.data instanceof Blob) {
+                        const url = URL.createObjectURL(event.data);
+                        audioPlayer.src = url;
+                        audioPlayer.play().catch(e => console.log('Автовоспроизведение заблокировано'));
+                    }
+                    
+                    updateStatus('🔴 В ЭФИРЕ', 'broadcast');
+                    nowPlayingEl.textContent = 'Прямой эфир';
+                    return;
+                }
+                
+                // Текстовые сообщения
+                if (typeof event.data === 'string') {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('Сообщение:', data);
+                        
+                        if (data.type === 'listeners') {
+                            listenerCountEl.textContent = data.count;
+                        }
+                        
+                        if (data.type === 'track-info') {
+                            nowPlayingEl.textContent = `${data.artist || 'Исполнитель'} - ${data.title || 'Трек'}`;
+                        }
+                        
+                        if (data.type === 'registered') {
+                            console.log('Зарегистрирован как:', data.role);
+                        }
+                    } catch (e) {
+                        console.log('Текст:', event.data);
+                    }
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket закрыт');
+                updateStatus('Соединение потеряно', 'offline');
+                
+                // Переподключение через 3 секунды
+                setTimeout(connect, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket ошибка:', error);
+                updateStatus('Ошибка подключения', 'offline');
+            };
+        }
+        
+        // Обновление статуса
+        function updateStatus(text, type) {
+            const dot = statusEl.querySelector('.dot');
+            dot.style.color = type === 'online' ? '#00ff64' : 
+                             type === 'broadcast' ? '#ff0000' : '#ff3232';
+            
+            if (type === 'broadcast') {
+                dot.style.animation = 'pulse 2s infinite';
+            } else {
+                dot.style.animation = 'none';
+            }
+            
+            statusEl.querySelector('span').textContent = text;
+            statusEl.className = `status status-${type}`;
+        }
+        
+        // Расчет битрейта
+        function updateBitrate() {
+            const now = Date.now();
+            const elapsed = (now - lastTime) / 1000;
+            
+            if (elapsed > 0 && lastBytes > 0) {
+                const kbps = Math.round((lastBytes * 8) / (elapsed * 1000));
+                bitrateEl.textContent = `${kbps} kbps`;
+                lastBytes = 0;
+            }
+            
+            lastTime = now;
+        }
+        
+        // Пинг серверу каждые 30 секунд
+        setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping', time: Date.now() }));
+            }
+        }, 30000);
+        
+        // Запуск при загрузке страницы
+        window.addEventListener('load', connect);
+        
+        // Очистка при закрытии
+        window.addEventListener('beforeunload', () => {
+            if (ws) ws.close();
+        });
+    </script>
 </body>
 </html>

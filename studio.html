@@ -3,128 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LynchFM Студия</title>
+    <title>LynchFM - Студия</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
-            color: white;
-            min-height: 100vh;
+            margin: 0;
             padding: 20px;
+            background: #111;
+            color: white;
+            font-family: Arial, sans-serif;
         }
         .container {
             max-width: 800px;
             margin: 0 auto;
         }
         h1 {
+            color: #00a8ff;
             text-align: center;
-            color: #00ffff;
-            font-size: 2.5em;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
         .panel {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 15px;
-            padding: 25px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 20px;
             margin-bottom: 20px;
+            border: 1px solid #333;
         }
         .status {
-            padding: 15px;
-            border-radius: 10px;
+            padding: 10px;
+            border-radius: 5px;
             margin-bottom: 20px;
             text-align: center;
             font-weight: bold;
         }
-        .offline { background: rgba(255, 50, 50, 0.2); border: 1px solid #ff3232; }
-        .online { background: rgba(0, 255, 100, 0.2); border: 1px solid #00ff64; }
-        .broadcast { background: rgba(255, 0, 0, 0.2); border: 1px solid #ff0000; }
+        .offline { background: #ff4444; }
+        .online { background: #44ff44; color: #000; }
+        .broadcast { background: #ff4444; animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
         
         .controls {
             display: flex;
-            gap: 15px;
+            gap: 10px;
             margin: 20px 0;
             flex-wrap: wrap;
         }
-        .btn {
-            padding: 15px 25px;
-            font-size: 16px;
+        button {
+            padding: 12px 24px;
             border: none;
-            border-radius: 8px;
-            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
             font-weight: bold;
-            transition: all 0.3s;
+            cursor: pointer;
             flex: 1;
-            min-width: 120px;
+            min-width: 150px;
         }
-        .btn-primary {
-            background: linear-gradient(45deg, #00b4db, #0083b0);
+        .start-btn {
+            background: #00a8ff;
             color: white;
         }
-        .btn-danger {
-            background: linear-gradient(45deg, #ff416c, #ff4b2b);
+        .stop-btn {
+            background: #ff4444;
             color: white;
         }
-        .btn-success {
-            background: linear-gradient(45deg, #00b09b, #96c93d);
+        .mp3-btn {
+            background: #44cc44;
+            color: white;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 5px;
             color: white;
         }
         
-        select, input {
-            width: 100%;
-            padding: 12px;
+        .track-info {
+            background: #222;
+            padding: 15px;
             border-radius: 5px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            margin-bottom: 15px;
+            margin: 15px 0;
         }
         
         .level-meter {
             width: 100%;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
+            height: 10px;
+            background: #222;
+            border-radius: 5px;
             overflow: hidden;
             margin: 20px 0;
         }
         .level-fill {
             height: 100%;
-            background: linear-gradient(90deg, #00ffff, #00ffaa);
+            background: #00a8ff;
             width: 0%;
             transition: width 0.1s;
-        }
-        
-        .mp3-controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin: 20px 0;
-        }
-        
-        .track-info {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 15px;
-            border-radius: 10px;
-            margin: 15px 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>LynchFM Студия</h1>
+        <h1>🎙️ LynchFM Студия</h1>
         
         <div class="panel">
-            <div class="status offline" id="status">ОФФЛАЙН</div>
-            
-            <select id="micSelect">
-                <option value="">Выберите микрофон...</option>
-            </select>
+            <div class="status offline" id="status">ОТКЛЮЧЕНО</div>
             
             <div class="controls">
-                <button class="btn btn-primary" id="startBtn">НАЧАТЬ ЭФИР</button>
-                <button class="btn btn-danger" id="stopBtn" disabled>СТОП</button>
+                <button class="start-btn" id="startBtn">НАЧАТЬ ЭФИР</button>
+                <button class="stop-btn" id="stopBtn" disabled>ОСТАНОВИТЬ</button>
             </div>
             
             <div class="level-meter">
@@ -134,43 +129,43 @@
             <div class="track-info">
                 <input type="text" id="trackTitle" placeholder="Название трека">
                 <input type="text" id="trackArtist" placeholder="Исполнитель">
-                <button class="btn btn-success" id="sendTrackBtn" style="margin-top: 10px;">Отправить информацию о треке</button>
+                <button id="sendTrackBtn">Отправить информацию о треке</button>
             </div>
         </div>
         
         <div class="panel">
-            <h3>MP3 для трансляции</h3>
+            <h3>📀 Воспроизведение MP3</h3>
             
-            <div class="mp3-controls">
-                <input type="file" id="mp3File" accept="audio/mp3" style="grid-column: 1 / -1;">
-                <button class="btn btn-success" id="playMp3Btn" disabled>Включить MP3</button>
-                <button class="btn btn-danger" id="stopMp3Btn" disabled>Выключить MP3</button>
+            <input type="file" id="mp3File" accept="audio/mp3,audio/*">
+            
+            <div class="controls">
+                <button class="mp3-btn" id="playMp3Btn" disabled>▶️ Включить MP3</button>
+                <button class="stop-btn" id="stopMp3Btn" disabled>⏹️ Выключить MP3</button>
             </div>
             
-            <div id="currentMp3" style="margin: 15px 0; color: #aaa;">
+            <div id="currentMp3" style="margin: 10px 0; color: #888;">
                 MP3 не выбран
             </div>
         </div>
     </div>
 
-    <!-- Скрытый аудио элемент для MP3 -->
+    <!-- Скрытый аудио элемент для воспроизведения MP3 -->
     <audio id="mp3Player" style="display: none;"></audio>
 
     <script>
-        // ============= СОСТОЯНИЕ =============
+        // Переменные состояния
         let ws = null;
-        let micStream = null;
-        let micRecorder = null;
-        let mp3Recorder = null;
         let isLive = false;
         let currentMp3 = null;
         let isMp3Playing = false;
+        let audioContext = null;
+        let mp3Source = null;
+        let mediaRecorder = null;
         
-        // ============= ЭЛЕМЕНТЫ =============
+        // Элементы DOM
         const statusEl = document.getElementById('status');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
-        const micSelect = document.getElementById('micSelect');
         const levelFill = document.getElementById('levelFill');
         const mp3File = document.getElementById('mp3File');
         const playMp3Btn = document.getElementById('playMp3Btn');
@@ -181,242 +176,221 @@
         const sendTrackBtn = document.getElementById('sendTrackBtn');
         const mp3Player = document.getElementById('mp3Player');
         
-        // ============= WEB SOCKET =============
-        function connect() {
-            ws = new WebSocket("wss://" + window.location.host);
+        // Подключение WebSocket
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = protocol + window.location.host;
+            
+            ws = new WebSocket(wsUrl);
             
             ws.onopen = () => {
+                console.log('Подключено к серверу WebSocket');
                 statusEl.textContent = 'ПОДКЛЮЧЕНО';
                 statusEl.className = 'status online';
+                startBtn.disabled = false;
             };
             
             ws.onclose = () => {
+                console.log('Отключено от сервера WebSocket');
                 statusEl.textContent = 'ОТКЛЮЧЕНО';
                 statusEl.className = 'status offline';
-                if (isLive) stopBroadcast();
-                setTimeout(connect, 3000);
+                startBtn.disabled = true;
+                stopBtn.disabled = true;
+                
+                // Переподключение через 3 секунды
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket ошибка:', error);
             };
         }
         
-        // ============= НАЧАТЬ ТРАНСЛЯЦИЮ =============
-        async function startBroadcast() {
+        // Начать трансляцию MP3
+        async function startMp3Stream() {
+            if (!currentMp3 || !isLive || !ws) {
+                alert('Сначала начните эфир и выберите MP3 файл');
+                return;
+            }
+            
             try {
-                // Получаем микрофон
-                const deviceId = micSelect.value;
-                const constraints = {
-                    audio: {
-                        deviceId: deviceId ? { exact: deviceId } : undefined,
-                        echoCancellation: false,
-                        noiseSuppression: false
-                    }
-                };
+                // Создаем AudioContext
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 
-                micStream = await navigator.mediaDevices.getUserMedia(constraints);
+                // Создаем источник из аудио элемента
+                mp3Source = audioContext.createMediaElementSource(mp3Player);
                 
-                // Создаем MediaRecorder для микрофона
-                micRecorder = new MediaRecorder(micStream);
+                // Создаем destination для захвата звука
+                const destination = audioContext.createMediaStreamDestination();
+                mp3Source.connect(destination);
                 
-                // Отправляем аудио с микрофона
-                micRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
+                // Создаем MediaRecorder для захвата звука
+                mediaRecorder = new MediaRecorder(destination.stream);
+                
+                // Отправляем данные через WebSocket
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
                         ws.send(event.data);
                     }
                 };
                 
-                // Визуализация уровня
-                const audioContext = new AudioContext();
-                const source = audioContext.createMediaStreamSource(micStream);
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
+                // Начинаем запись с интервалом 100мс
+                mediaRecorder.start(100);
                 
-                function updateLevel() {
-                    if (!isLive) return;
-                    
-                    const data = new Uint8Array(analyser.frequencyBinCount);
-                    analyser.getByteFrequencyData(data);
-                    
-                    let sum = 0;
-                    for (const value of data) sum += value;
-                    const avg = sum / data.length;
-                    
-                    levelFill.style.width = Math.min(avg, 100) + '%';
-                    requestAnimationFrame(updateLevel);
-                }
+                // Запускаем воспроизведение
+                await mp3Player.play();
                 
-                // Стартуем микрофон
-                micRecorder.start(500);
-                isLive = true;
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-                playMp3Btn.disabled = false;
-                statusEl.textContent = 'В ЭФИРЕ';
-                statusEl.className = 'status broadcast';
+                isMp3Playing = true;
+                playMp3Btn.disabled = true;
+                stopMp3Btn.disabled = false;
                 
-                updateLevel();
+                console.log('MP3 воспроизведение начато');
                 
-                console.log('Трансляция начата');
+                // Обновляем уровень громкости
+                updateVolumeLevel();
                 
             } catch (error) {
-                console.error('Ошибка:', error);
-                alert('Не удалось начать трансляцию: ' + error.message);
+                console.error('Ошибка при воспроизведении MP3:', error);
+                alert('Ошибка: ' + error.message);
             }
         }
         
-        // ============= ОСТАНОВИТЬ ТРАНСЛЯЦИЮ =============
-        function stopBroadcast() {
-            if (micRecorder) micRecorder.stop();
-            if (micStream) micStream.getTracks().forEach(t => t.stop());
-            if (mp3Recorder) mp3Recorder.stop();
-            if (mp3Player.src) {
-                mp3Player.pause();
-                mp3Player.src = '';
+        // Остановить MP3
+        function stopMp3Stream() {
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+                mediaRecorder = null;
             }
             
-            isLive = false;
+            if (mp3Player) {
+                mp3Player.pause();
+                mp3Player.currentTime = 0;
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            
             isMp3Playing = false;
+            playMp3Btn.disabled = false;
+            stopMp3Btn.disabled = true;
+            
+            console.log('MP3 воспроизведение остановлено');
+        }
+        
+        // Обновление уровня громкости
+        function updateVolumeLevel() {
+            if (!isMp3Playing) {
+                levelFill.style.width = '0%';
+                return;
+            }
+            
+            // Простая имитация уровня звука
+            const randomLevel = Math.random() * 80 + 10;
+            levelFill.style.width = randomLevel + '%';
+            
+            if (isMp3Playing) {
+                requestAnimationFrame(updateVolumeLevel);
+            }
+        }
+        
+        // Начать эфир
+        startBtn.addEventListener('click', () => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Нет подключения к серверу');
+                return;
+            }
+            
+            isLive = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            playMp3Btn.disabled = false;
+            
+            statusEl.textContent = 'В ЭФИРЕ';
+            statusEl.className = 'status broadcast';
+            
+            console.log('Эфир начат');
+        });
+        
+        // Остановить эфир
+        stopBtn.addEventListener('click', () => {
+            isLive = false;
             startBtn.disabled = false;
             stopBtn.disabled = true;
             playMp3Btn.disabled = true;
             stopMp3Btn.disabled = true;
+            
             statusEl.textContent = 'ПОДКЛЮЧЕНО';
             statusEl.className = 'status online';
-            levelFill.style.width = '0%';
             
-            console.log('Трансляция остановлена');
-        }
-        
-        // ============= MP3 УПРАВЛЕНИЕ =============
-        function setupMP3() {
-            mp3File.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                
-                if (!file.type.startsWith('audio/') && !file.name.endsWith('.mp3')) {
-                    alert('Выберите MP3 файл');
-                    return;
-                }
-                
-                currentMp3 = URL.createObjectURL(file);
-                mp3Player.src = currentMp3;
-                currentMp3El.textContent = 'Выбран: ' + file.name;
-                playMp3Btn.disabled = !isLive;
-            });
-            
-            playMp3Btn.addEventListener('click', async () => {
-                if (!currentMp3 || !isLive) {
-                    alert('Сначала начните трансляцию и выберите MP3');
-                    return;
-                }
-                
-                try {
-                    // Создаем AudioContext для захвата звука с MP3
-                    const audioContext = new AudioContext();
-                    const source = audioContext.createMediaElementSource(mp3Player);
-                    const destination = audioContext.createMediaStreamDestination();
-                    source.connect(destination);
-                    
-                    // Создаем MediaRecorder для MP3
-                    mp3Recorder = new MediaRecorder(destination.stream);
-                    
-                    mp3Recorder.ondataavailable = (event) => {
-                        if (event.data.size > 0 && ws && ws.readyState === WebSocket.OPEN && isLive) {
-                            ws.send(event.data);
-                        }
-                    };
-                    
-                    // Запускаем запись MP3
-                    mp3Recorder.start(500);
-                    
-                    // Запускаем воспроизведение MP3
-                    await mp3Player.play();
-                    
-                    isMp3Playing = true;
-                    playMp3Btn.disabled = true;
-                    stopMp3Btn.disabled = false;
-                    
-                    console.log('MP3 включен');
-                    
-                    // Когда MP3 закончится
-                    mp3Player.onended = () => {
-                        if (mp3Recorder) mp3Recorder.stop();
-                        isMp3Playing = false;
-                        playMp3Btn.disabled = false;
-                        stopMp3Btn.disabled = true;
-                        console.log('MP3 закончился');
-                    };
-                    
-                } catch (error) {
-                    console.error('Ошибка включения MP3:', error);
-                    alert('Ошибка воспроизведения MP3: ' + error.message);
-                }
-            });
-            
-            stopMp3Btn.addEventListener('click', () => {
-                if (mp3Recorder) mp3Recorder.stop();
-                mp3Player.pause();
-                mp3Player.currentTime = 0;
-                isMp3Playing = false;
-                playMp3Btn.disabled = false;
-                stopMp3Btn.disabled = true;
-                console.log('MP3 остановлен');
-            });
-        }
-        
-        // ============= ИНФОРМАЦИЯ О ТРЕКЕ =============
-        function setupTrackInfo() {
-            sendTrackBtn.addEventListener('click', () => {
-                if (!ws || ws.readyState !== WebSocket.OPEN) {
-                    alert('Нет подключения к серверу');
-                    return;
-                }
-                
-                const title = trackTitle.value.trim() || 'Трек';
-                const artist = trackArtist.value.trim() || 'Исполнитель';
-                
-                ws.send(JSON.stringify({
-                    type: 'track',
-                    title: title,
-                    artist: artist
-                }));
-                
-                console.log('Отправлена информация о треке:', artist + ' - ' + title);
-                alert('Информация о треке отправлена слушателям');
-            });
-        }
-        
-        // ============= ЗАГРУЗКА УСТРОЙСТВ =============
-        async function loadDevices() {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const mics = devices.filter(d => d.kind === 'audioinput');
-                
-                mics.forEach(mic => {
-                    const option = document.createElement('option');
-                    option.value = mic.deviceId;
-                    option.text = mic.label || 'Микрофон ' + (micSelect.options.length);
-                    micSelect.appendChild(option);
-                });
-            } catch (error) {
-                console.error('Ошибка загрузки устройств:', error);
+            // Останавливаем MP3 если играет
+            if (isMp3Playing) {
+                stopMp3Stream();
             }
-        }
+            
+            console.log('Эфир остановлен');
+        });
         
-        // ============= ИНИЦИАЛИЗАЦИЯ =============
-        window.addEventListener('load', async () => {
-            await loadDevices();
-            connect();
-            setupMP3();
-            setupTrackInfo();
+        // Выбор MP3 файла
+        mp3File.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
             
-            startBtn.addEventListener('click', startBroadcast);
-            stopBtn.addEventListener('click', stopBroadcast);
+            if (!file.type.startsWith('audio/') && !file.name.toLowerCase().endsWith('.mp3')) {
+                alert('Пожалуйста, выберите аудио файл (MP3)');
+                mp3File.value = '';
+                return;
+            }
             
+            currentMp3 = URL.createObjectURL(file);
+            mp3Player.src = currentMp3;
+            currentMp3El.textContent = 'Выбран: ' + file.name;
+            
+            console.log('MP3 файл выбран:', file.name);
+        });
+        
+        // Кнопки управления MP3
+        playMp3Btn.addEventListener('click', startMp3Stream);
+        stopMp3Btn.addEventListener('click', stopMp3Stream);
+        
+        // Отправка информации о треке
+        sendTrackBtn.addEventListener('click', () => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Нет подключения к серверу');
+                return;
+            }
+            
+            const title = trackTitle.value.trim() || 'Неизвестный трек';
+            const artist = trackArtist.value.trim() || 'Неизвестный исполнитель';
+            
+            ws.send(JSON.stringify({
+                type: 'track',
+                title: title,
+                artist: artist
+            }));
+            
+            console.log('Информация о треке отправлена:', artist + ' - ' + title);
+            alert('Информация о треке отправлена слушателям!');
+        });
+        
+        // Инициализация при загрузке страницы
+        window.addEventListener('load', () => {
+            connectWebSocket();
+            
+            // Обработка закрытия страницы
             window.addEventListener('beforeunload', () => {
-                if (isLive) stopBroadcast();
                 if (ws) ws.close();
                 if (currentMp3) URL.revokeObjectURL(currentMp3);
             });
+        });
+        
+        // Обработка конца воспроизведения MP3
+        mp3Player.addEventListener('ended', () => {
+            if (isMp3Playing) {
+                stopMp3Stream();
+                alert('MP3 файл закончился');
+            }
         });
     </script>
 </body>

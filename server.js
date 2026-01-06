@@ -23,13 +23,13 @@ app.get("/studio", (req, res) => {
     res.sendFile(path.join(__dirname, "studio.html"));
 });
 
-// WebSocket - просто пересылаем все
+// WebSocket
 wss.on("connection", (ws) => {
-    console.log("Клиент подключен");
+    console.log("Новый клиент подключен");
     clients.add(ws);
     
     ws.on("message", (data) => {
-        // Просто пересылаем всем остальным
+        // Пересылаем всем остальным клиентам
         clients.forEach(client => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
                 client.send(data);

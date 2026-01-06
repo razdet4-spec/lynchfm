@@ -23,13 +23,13 @@ app.get("/studio", (req, res) => {
     res.sendFile(path.join(__dirname, "studio.html"));
 });
 
-// WebSocket - ПРОСТО ПЕРЕСЫЛАЕМ ВСЕ
+// WebSocket - просто пересылаем все
 wss.on("connection", (ws) => {
     console.log("Клиент подключен");
     clients.add(ws);
     
     ws.on("message", (data) => {
-        // ПРОСТО ПЕРЕСЫЛАЕМ ВСЕМ ОСТАЛЬНЫМ
+        // Просто пересылаем всем остальным
         clients.forEach(client => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
                 client.send(data);
@@ -45,7 +45,7 @@ wss.on("connection", (ws) => {
 
 // Запуск сервера
 server.listen(PORT, () => {
-    console.log(✅ Сервер запущен на порту ${PORT});
-    console.log(📻 Слушатели: http://localhost:${PORT});
-    console.log(🎙️ Студия: http://localhost:${PORT}/studio);
+    console.log("Сервер запущен на порту " + PORT);
+    console.log("Слушатели: http://localhost:" + PORT);
+    console.log("Студия: http://localhost:" + PORT + "/studio");
 });

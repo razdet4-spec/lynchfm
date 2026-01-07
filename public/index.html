@@ -2,63 +2,58 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>LynchFM — Прямой эфир</title>
+    <title>LynchFM | Прямой Эфир</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .player-card { background: #2a2a2a; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; border: 2px solid #ff0055; }
-        .status { color: #ff0055; font-weight: bold; margin-bottom: 10px; }
-        button { background: #ff0055; border: none; color: white; padding: 15px 30px; border-radius: 50px; cursor: pointer; font-size: 18px; transition: 0.3s; }
-        button:hover { transform: scale(1.05); background: #ff3377; }
-        .listeners { margin-top: 20px; font-size: 0.8em; opacity: 0.7; }
+        body { background: #050505; color: white; font-family: 'Arial', sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        .player-wrap { background: linear-gradient(145deg, #111, #1a1a1a); border: 1px solid #333; padding: 50px; border-radius: 40px; text-align: center; position: relative; width: 320px; }
+        .player-wrap::before { content: ''; position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px; background: linear-gradient(45deg, #ff0055, #00d2ff); border-radius: 42px; z-index: -1; opacity: 0.3; }
+        h1 { font-size: 40px; margin: 0; letter-spacing: -1px; background: linear-gradient(#fff, #888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .sub { font-size: 10px; text-transform: uppercase; color: #ff0055; letter-spacing: 4px; margin-bottom: 30px; }
+        #playBtn { width: 80px; height: 80px; border-radius: 50%; border: none; background: #ff0055; color: white; cursor: pointer; font-size: 24px; box-shadow: 0 0 20px rgba(255,0,85,0.4); transition: 0.3s; }
+        #playBtn:hover { transform: scale(1.1); box-shadow: 0 0 30px rgba(255,0,85,0.6); }
+        .online { margin-top: 30px; font-size: 12px; color: #555; }
     </style>
 </head>
 <body>
-    <div class="player-card">
-        <div id="status" class="status">● ОЖИДАНИЕ ЭФИРА</div>
-        <h1>LynchFM</h1>
-        <p>Нажми "Слушать", чтобы подключиться к потоку</p>
-        <button id="playBtn">СЛУШАТЬ ЭФИР</button>
-        <div class="listeners">Слушателей онлайн: <span id="count">0</span></div>
+    <div class="player-wrap">
+        <div class="sub">Online Radio</div>
+        <h1>LYNCH FM</h1>
+        <div style="margin: 40px 0;">
+            <button id="playBtn">▶</button>
+        </div>
+        <div id="status" style="font-size: 14px; color: #ff0055;">ОЖИДАНИЕ</div>
+        <div class="online">Слушателей: <span id="count">0</span></div>
     </div>
 
     <script>
         const socket = io();
-        const playBtn = document.getElementById('playBtn');
-        const countSpan = document.getElementById('count');
-        const statusDiv = document.getElementById('status');
-        
-        let audioCtx;
-        let nextStartTime = 0;
+        let audioCtx, nextStartTime = 0;
 
-        socket.on('listeners-count', (count) => { countSpan.innerText = count; });
+        socket.on('listeners-count', c => document.getElementById('count').innerText = c);
 
-        playBtn.onclick = () => {
+        document.getElementById('playBtn').onclick = function() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                playBtn.innerText = "В ЭФИРЕ";
-                playBtn.style.background = "#444";
-                statusDiv.innerText = "● ПРЯМОЙ ЭФИР";
+                this.innerText = "■";
+                document.getElementById('status').innerText = "LIVE";
+            } else {
+                location.reload();
             }
         };
 
         socket.on('audio-data', async (data) => {
-            if (!audioCtx || audioCtx.state === 'suspended') return;
-
+            if (!audioCtx) return;
             try {
                 const buffer = await audioCtx.decodeAudioData(data);
                 const source = audioCtx.createBufferSource();
                 source.buffer = buffer;
                 source.connect(audioCtx.destination);
-                
-                // Синхронизация потока
-                const currentTime = audioCtx.currentTime;
-                if (nextStartTime < currentTime) nextStartTime = currentTime;
+                const now = audioCtx.currentTime;
+                if (nextStartTime < now) nextStartTime = now;
                 source.start(nextStartTime);
                 nextStartTime += buffer.duration;
-            } catch (e) {
-                console.error("Ошибка декодирования аудио", e);
-            }
+            } catch (e) {}
         });
     </script>
 </body>

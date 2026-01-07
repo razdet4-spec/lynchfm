@@ -2,51 +2,107 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>LynchFM Studio — Вещание</title>
+    <title>LynchFM Studio | Управление эфиром</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
-        .console { border: 1px solid #0f0; padding: 20px; max-width: 600px; margin: 0 auto; }
-        button { background: #0f0; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
-        .live { color: red; animation: blink 1s infinite; display: none; }
+        body { background: #0f0f0f; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; padding: 20px; }
+        .studio-panel { background: #1a1a1a; border: 2px solid #ff0055; border-radius: 15px; padding: 30px; width: 100%; max-width: 500px; box-shadow: 0 0 20px rgba(255,0,85,0.2); }
+        h2 { color: #ff0055; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
+        .control-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-size: 12px; color: #888; }
+        select, input[type="file"] { width: 100%; background: #2a2a2a; border: 1px solid #444; color: white; padding: 10px; border-radius: 5px; }
+        .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { border: none; padding: 15px; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase; }
+        #startBtn { background: #ff0055; color: white; }
+        #stopBtn { background: #444; color: white; cursor: not-allowed; }
+        .status-bar { display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px; border-top: 1px solid #333; pt: 10px; }
+        .live-tag { color: #ff0055; font-weight: bold; display: none; animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
 <body>
-    <div class="console">
-        <h2>LYNCH-AI BROADCASTER v1.0</h2>
-        <p>Статус: <span id="status">Готов к труду и обороне</span></p>
-        <div id="liveIndicator" class="live">● В ЭФИРЕ</div>
-        <button id="startBtn">ЗАПУСТИТЬ ТРАНСЛЯЦИЮ</button>
+    <div class="studio-panel">
+        <h2>LynchFM Studio</h2>
+        
+        <div class="control-group">
+            <label>Выбор источника (микрофон):</label>
+            <select id="micSelect"><option>Загрузка устройств...</option></select>
+        </div>
+
+        <div class="control-group">
+            <label>Транслировать файл (MP3):</label>
+            <input type="file" id="fileInput" accept="audio/*">
+        </div>
+
+        <div class="btns">
+            <button id="startBtn">В ЭФИР</button>
+            <button id="stopBtn" disabled>СТОП</button>
+        </div>
+
+        <div class="status-bar">
+            <span>Статус: <span id="status">Готов</span></span>
+            <span id="liveIndicator" class="live-tag">● LIVE</span>
+        </div>
     </div>
 
     <script>
         const socket = io();
-        const startBtn = document.getElementById('startBtn');
-        const status = document.getElementById('status');
-        const liveIndicator = document.getElementById('liveIndicator');
+        let mediaRecorder;
+        let audioContext;
+        let sourceNode;
 
-        startBtn.onclick = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        // Заполняем список микрофонов
+        async function getDevices() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const micSelect = document.getElementById('micSelect');
+            micSelect.innerHTML = '';
+            devices.filter(d => d.kind === 'audioinput').forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d.deviceId;
+                opt.text = d.label || `Микрофон ${micSelect.length + 1}`;
+                micSelect.appendChild(opt);
+            });
+        }
+        getDevices();
 
-                mediaRecorder.ondataavailable = async (e) => {
-                    if (e.data.size > 0) {
-                        const buffer = await e.data.arrayBuffer();
-                        socket.emit('audio-stream', buffer);
-                    }
-                };
-
-                // Отправляем кусочки звука каждые 200мс для минимальной задержки
-                mediaRecorder.start(200);
-                
-                startBtn.disabled = true;
-                status.innerText = "Трансляция идет...";
-                liveIndicator.style.display = "block";
-            } catch (err) {
-                alert("Ошибка доступа к микрофону: " + err);
+        document.getElementById('startBtn').onclick = async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: { deviceId: document.getElementById('micSelect').value } 
+            });
+            
+            // Если выбран файл, миксуем или просто запускаем файл (упрощенно - файл имеет приоритет)
+            const file = document.getElementById('fileInput').files[0];
+            if (file) {
+                // Логика для файла (можно просто проиграть его в поток через AudioContext)
+                const url = URL.createObjectURL(file);
+                const audio = new Audio(url);
+                audio.play();
+                const fileStream = audio.captureStream ? audio.captureStream() : audio.mozCaptureStream();
+                startBroadcasting(fileStream);
+            } else {
+                startBroadcasting(stream);
             }
+        };
+
+        function startBroadcasting(stream) {
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+            mediaRecorder.ondataavailable = async (e) => {
+                if (e.data.size > 0) {
+                    const buffer = await e.data.arrayBuffer();
+                    socket.emit('audio-stream', buffer);
+                }
+            };
+            mediaRecorder.start(200);
+
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('stopBtn').style.background = '#ff0055';
+            document.getElementById('liveIndicator').style.display = 'inline';
+            document.getElementById('status').innerText = 'В эфире';
+        }
+
+        document.getElementById('stopBtn').onclick = () => {
+            location.reload(); // Простой способ остановить всё сразу
         };
     </script>
 </body>

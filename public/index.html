@@ -2,127 +2,64 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LynchFM - Слушатели</title>
+    <title>LynchFM — Прямой эфир</title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            background: #0a0a0a;
-            color: white;
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-        .container {
-            max-width: 500px;
-            margin: 50px auto;
-            padding: 30px;
-            background: #1a1a1a;
-            border-radius: 10px;
-            border: 1px solid #333;
-        }
-        h1 {
-            color: #00a8ff;
-            margin-bottom: 30px;
-        }
-        .status {
-            padding: 10px;
-            border-radius: 5px;
-            margin: 20px 0;
-            font-weight: bold;
-        }
-        .offline {
-            background: #ff4444;
-            color: white;
-        }
-        .online {
-            background: #44ff44;
-            color: #000;
-        }
-        .broadcast {
-            background: #ff4444;
-            color: white;
-            animation: pulse 1s infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.8; }
-            100% { opacity: 1; }
-        }
-        audio {
-            width: 100%;
-            margin: 20px 0;
-        }
-        #nowPlaying {
-            margin-top: 20px;
-            color: #888;
-            min-height: 24px;
-        }
+        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .player-card { background: #2a2a2a; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; border: 2px solid #ff0055; }
+        .status { color: #ff0055; font-weight: bold; margin-bottom: 10px; }
+        button { background: #ff0055; border: none; color: white; padding: 15px 30px; border-radius: 50px; cursor: pointer; font-size: 18px; transition: 0.3s; }
+        button:hover { transform: scale(1.05); background: #ff3377; }
+        .listeners { margin-top: 20px; font-size: 0.8em; opacity: 0.7; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎧 LynchFM</h1>
-        <div class="status offline" id="status">ОФФЛАЙН</div>
-        <audio id="player" controls autoplay></audio>
-        <div id="nowPlaying">Ожидание начала эфира...</div>
+    <div class="player-card">
+        <div id="status" class="status">● ОЖИДАНИЕ ЭФИРА</div>
+        <h1>LynchFM</h1>
+        <p>Нажми "Слушать", чтобы подключиться к потоку</p>
+        <button id="playBtn">СЛУШАТЬ ЭФИР</button>
+        <div class="listeners">Слушателей онлайн: <span id="count">0</span></div>
     </div>
 
     <script>
-        const player = document.getElementById('player');
-        const statusEl = document.getElementById('status');
-        const nowPlayingEl = document.getElementById('nowPlaying');
+        const socket = io();
+        const playBtn = document.getElementById('playBtn');
+        const countSpan = document.getElementById('count');
+        const statusDiv = document.getElementById('status');
         
-        // Используем wss:// если на HTTPS, иначе ws://
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const wsUrl = protocol + window.location.host;
-        
-        const ws = new WebSocket(wsUrl);
-        
-        ws.onopen = () => {
-            statusEl.textContent = 'ОНЛАЙН';
-            statusEl.className = 'status online';
-            nowPlayingEl.textContent = 'Готов к приему эфира...';
-            console.log('Подключено к серверу');
+        let audioCtx;
+        let nextStartTime = 0;
+
+        socket.on('listeners-count', (count) => { countSpan.innerText = count; });
+
+        playBtn.onclick = () => {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                playBtn.innerText = "В ЭФИРЕ";
+                playBtn.style.background = "#444";
+                statusDiv.innerText = "● ПРЯМОЙ ЭФИР";
+            }
         };
-        
-        ws.onmessage = (event) => {
-            // Если пришел Blob (аудио данные)
-            if (event.data instanceof Blob) {
-                const url = URL.createObjectURL(event.data);
-                player.src = url;
+
+        socket.on('audio-data', async (data) => {
+            if (!audioCtx || audioCtx.state === 'suspended') return;
+
+            try {
+                const buffer = await audioCtx.decodeAudioData(data);
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioCtx.destination);
                 
-                statusEl.textContent = 'В ЭФИРЕ';
-                statusEl.className = 'status broadcast';
-                nowPlayingEl.textContent = 'Прямой эфир';
+                // Синхронизация потока
+                const currentTime = audioCtx.currentTime;
+                if (nextStartTime < currentTime) nextStartTime = currentTime;
+                source.start(nextStartTime);
+                nextStartTime += buffer.duration;
+            } catch (e) {
+                console.error("Ошибка декодирования аудио", e);
             }
-            // Если пришел текст (информация о треке)
-            else if (typeof event.data === 'string') {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'track') {
-                        nowPlayingEl.textContent = `${data.artist} - ${data.title}`;
-                    }
-                } catch(e) {
-                    // Просто игнорируем если не JSON
-                }
-            }
-        };
-        
-        ws.onclose = () => {
-            statusEl.textContent = 'ОФФЛАЙН';
-            statusEl.className = 'status offline';
-            nowPlayingEl.textContent = 'Соединение потеряно...';
-            
-            // Пытаемся переподключиться через 5 секунд
-            setTimeout(() => {
-                location.reload();
-            }, 5000);
-        };
-        
-        ws.onerror = (error) => {
-            console.error('WebSocket ошибка:', error);
-        };
+        });
     </script>
 </body>
 </html>
